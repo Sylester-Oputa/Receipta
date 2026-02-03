@@ -25,5 +25,7 @@ export const deriveStatusFromPaid = (
   return currentStatus;
 };
 
-export const calculateBalance = (invoiceTotal: Prisma.Decimal, paidTotal: Prisma.Decimal) =>
-  Prisma.Decimal.max(invoiceTotal.minus(paidTotal), new Prisma.Decimal(0)).toDecimalPlaces(2);
+export const calculateBalance = (invoiceTotal: Prisma.Decimal, paidTotal: Prisma.Decimal) => {
+  const balance = invoiceTotal.minus(paidTotal);
+  return (balance.lessThan(0) ? new Prisma.Decimal(0) : balance).toDecimalPlaces(2);
+};

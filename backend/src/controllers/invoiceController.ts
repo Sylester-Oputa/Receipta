@@ -116,7 +116,10 @@ export const listInvoices = async (req: Request, res: Response) => {
     throw new AppError(401, "Unauthorized", "UNAUTHORIZED");
   }
 
-  const status = req.query.status as InvoiceStatus | undefined;
+  const statusParam = req.query.status as string | undefined;
+  const status = statusParam && Object.values(InvoiceStatus).includes(statusParam as InvoiceStatus)
+    ? (statusParam as InvoiceStatus)
+    : undefined;
   const invoices = await prisma.invoice.findMany({
     where: {
       businessId,

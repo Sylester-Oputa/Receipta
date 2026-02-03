@@ -6,7 +6,8 @@ process.env.JWT_SECRET = process.env.JWT_SECRET ?? "test-secret";
 process.env.DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? "postgresql://user:password@localhost:5432/receipta_test";
 
-import { prisma } from "../src/db/prisma";
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { prisma } = require("../src/db/prisma");
 
 const resetDb = async () => {
   await prisma.invoiceSignature.deleteMany();

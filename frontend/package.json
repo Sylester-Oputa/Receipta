@@ -62,7 +62,7 @@
     "react-day-picker": "^9.13.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.71.1",
-    "react-resizable-panels": "^4.5.9",
+    "react-resizable-panels": "^2.1.9",
     "react-router-dom": "^7.13.0",
     "react-signature-canvas": "^1.1.0-alpha.2",
     "recharts": "^3.7.0",

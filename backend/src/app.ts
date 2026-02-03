@@ -7,6 +7,7 @@ import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { swaggerSpec } from "./config/swagger";
 import { errorHandler, notFound } from "./middleware/error";
+import { ensureStorageDirs } from "./utils/storage";
 import authRoutes from "./routes/authRoutes";
 import businessRoutes from "./routes/businessRoutes";
 import clientRoutes from "./routes/clientRoutes";
@@ -18,6 +19,8 @@ import receiptRoutes from "./routes/receiptRoutes";
 export const createApp = () => {
   const app = express();
   app.set("trust proxy", 1);
+
+  ensureStorageDirs();
 
   app.use(helmet());
   app.use(
