@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receipta - Invoice and Payment Workflow Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #f8f9fa;
+            border: none;
+            font-size: 1.1em;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+        }
+
+        .tab.active {
+            background: white;
+            border-bottom: 3px solid #667eea;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .items-container {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .item-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: end;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
+        .invoice-list,
+        .payment-list,
+        .receipt-list {
+            margin-top: 30px;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .card-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        .status-draft {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .status-sent {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .status-acknowledged {
+            background: #007bff;
+            color: white;
+        }
+
+        .status-paid {
+            background: #28a745;
+            color: white;
+        }
+
+        .card-body {
+            margin-bottom: 15px;
+        }
+
+        .card-body p {
+            margin: 5px 0;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Receipta</h1>
+            <p>Invoice and Payment Workflow Platform</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('dashboard')">Dashboard</button>
+            <button class="tab" onclick="showTab('invoices')">Invoices</button>
+            <button class="tab" onclick="showTab('payments')">Payments</button>
+            <button class="tab" onclick="showTab('receipts')">Receipts</button>
+        </div>
+
+        <div class="content">
+            <!-- Dashboard Tab -->
+            <div id="dashboard" class="tab-content active">
+                <h2>Dashboard</h2>
+                <div class="stats" id="stats">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Invoices</div>
+                        <div class="stat-value" id="totalInvoices">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Payments</div>
+                        <div class="stat-value" id="totalPayments">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Receipts Generated</div>
+                        <div class="stat-value" id="totalReceipts">0</div>
+                    </div>
+                </div>
+
+                <h3>Recent Activity</h3>
+                <div id="recentActivity" class="loading">Loading...</div>
+            </div>
+
+            <!-- Invoices Tab -->
+            <div id="invoices" class="tab-content">
+                <h2>Invoice Management</h2>
+                
+                <div id="invoiceAlert"></div>
+
+                <h3>Create New Invoice</h3>
+                <form id="invoiceForm">
+                    <div class="form-group">
+                        <label>Client Name *</label>
+                        <input type="text" id="clientName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Client Email *</label>
+                        <input type="email" id="clientEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Due Date *</label>
+                        <input type="date" id="dueDate" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Invoice Items *</label>
+                        <div class="items-container" id="itemsContainer">
+                            <div class="item-row">
+                                <input type="text" placeholder="Description" class="item-description" required>
+                                <input type="number" placeholder="Quantity" class="item-quantity" min="1" value="1" required>
+                                <input type="number" placeholder="Unit Price" class="item-price" step="0.01" min="0" required>
+                                <button type="button" class="btn btn-danger btn-small" onclick="removeItem(this)">Remove</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-small" onclick="addItem()">Add Item</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea id="notes" placeholder="Additional notes..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Create Invoice</button>
+                </form>
+
+                <div class="invoice-list">
+                    <h3>All Invoices</h3>
+                    <div id="invoicesList" class="loading">Loading invoices...</div>
+                </div>
+            </div>
+
+            <!-- Payments Tab -->
+            <div id="payments" class="tab-content">
+                <h2>Payment Tracking</h2>
+                
+                <div id="paymentAlert"></div>
+
+                <h3>Record New Payment</h3>
+                <form id="paymentForm">
+                    <div class="form-group">
+                        <label>Select Invoice *</label>
+                        <select id="paymentInvoiceId" required>
+                            <option value="">-- Select an invoice --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Payment Amount *</label>
+                        <input type="number" id="paymentAmount" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Payment Method *</label>
+                        <select id="paymentMethod" required>
+                            <option value="">-- Select payment method --</option>
+                            <option value="cash">Cash</option>
+                            <option value="credit_card">Credit Card</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="check">Check</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea id="paymentNotes" placeholder="Payment notes..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Record Payment</button>
+                </form>
+
+                <div class="payment-list">
+                    <h3>All Payments</h3>
+                    <div id="paymentsList" class="loading">Loading payments...</div>
+                </div>
+            </div>
+
+            <!-- Receipts Tab -->
+            <div id="receipts" class="tab-content">
+                <h2>Receipt Management</h2>
+                
+                <div id="receiptAlert"></div>
+
+                <div class="receipt-list">
+                    <h3>All Receipts</h3>
+                    <div id="receiptsList" class="loading">Loading receipts...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
