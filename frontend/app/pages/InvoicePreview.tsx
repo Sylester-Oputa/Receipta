@@ -1,25 +1,29 @@
-import { useParams, useNavigate } from 'react-router-dom';
-import { useApp } from '@/app/contexts/AppContext';
-import { AppShell } from '@/app/components/AppShell';
-import { StatusBadge } from '@/app/components/StatusBadge';
-import { Button } from '@/app/components/ui/button';
-import { ArrowLeft, Download } from 'lucide-react';
-import { motion } from 'motion/react';
+import { useParams, useNavigate } from "react-router-dom";
+import { useApp } from "@/app/contexts/AppContext";
+import { AppShell } from "@/app/components/AppShell";
+import { StatusBadge } from "@/app/components/StatusBadge";
+import { Button } from "@/app/components/ui/button";
+import { ArrowLeft, Download } from "lucide-react";
+import { motion } from "motion/react";
+import { API_URL } from "@/lib/api";
+import { formatCurrency } from "@/app/utils/format";
 
 export function InvoicePreview() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { invoices, clients, settings } = useApp();
 
-  const invoice = invoices.find(inv => inv.id === id);
-  const client = invoice ? clients.find(c => c.id === invoice.clientId) : null;
+  const invoice = invoices.find((inv) => inv.id === id);
+  const client = invoice
+    ? clients.find((c) => c.id === invoice.clientId)
+    : null;
 
   if (!invoice || !client) {
     return (
       <AppShell title="Invoice Not Found">
         <div className="p-8 text-center">
           <p>Invoice not found</p>
-          <Button onClick={() => navigate('/invoices')} className="mt-4">
+          <Button onClick={() => navigate("/invoices")} className="mt-4">
             Back to Invoices
           </Button>
         </div>
@@ -35,7 +39,7 @@ export function InvoicePreview() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.16, ease: 'easeOut' }}
+          transition={{ duration: 0.16, ease: "easeOut" }}
         >
           <div className="flex items-center justify-between mb-6">
             <Button
@@ -46,7 +50,17 @@ export function InvoicePreview() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Invoice
             </Button>
-            <Button variant="outline">
+            <Button
+              variant="outline"
+              onClick={() =>
+                window.open(
+                  `${API_URL}/v1/invoices/${invoice.id}/pdf${
+                    invoice.signature ? "?signed=true" : ""
+                  }`,
+                  "_blank",
+                )
+              }
+            >
               <Download className="h-4 w-4 mr-2" />
               Download PDF
             </Button>
@@ -56,12 +70,22 @@ export function InvoicePreview() {
           <div className="bg-white text-black rounded-lg shadow-lg overflow-hidden">
             {/* Brand Color Header */}
             <div className="h-3" style={{ backgroundColor: brandColor }} />
-            
+
             <div className="p-8 sm:p-12">
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 mb-8 pb-8 border-b-2 border-gray-200">
                 <div>
-                  <h1 className="text-3xl font-bold mb-2" style={{ color: brandColor }}>
+                  {settings.logoUrl && (
+                    <img
+                      src={settings.logoUrl}
+                      alt={`${settings.businessName} logo`}
+                      className="h-12 mb-3 object-contain"
+                    />
+                  )}
+                  <h1
+                    className="text-3xl font-bold mb-2"
+                    style={{ color: brandColor }}
+                  >
                     {settings.businessName}
                   </h1>
                   <div className="text-sm text-gray-600 whitespace-pre-line">
@@ -73,7 +97,9 @@ export function InvoicePreview() {
                   </div>
                 </div>
                 <div className="text-left sm:text-right">
-                  <div className="text-2xl font-bold mb-2">{invoice.invoiceNumber}</div>
+                  <div className="text-2xl font-bold mb-2">
+                    {invoice.invoiceNumber}
+                  </div>
                   <StatusBadge status={invoice.status} />
                 </div>
               </div>
@@ -81,8 +107,12 @@ export function InvoicePreview() {
               {/* Bill To & Details */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
                 <div>
-                  <div className="text-sm font-semibold text-gray-500 mb-2">BILL TO</div>
-                  <div className="font-semibold text-lg mb-1">{client.name}</div>
+                  <div className="text-sm font-semibold text-gray-500 mb-2">
+                    BILL TO
+                  </div>
+                  <div className="font-semibold text-lg mb-1">
+                    {client.name}
+                  </div>
                   <div className="text-sm text-gray-600">
                     <div>{client.address}</div>
                     <div className="mt-1">{client.email}</div>
@@ -93,11 +123,15 @@ export function InvoicePreview() {
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="text-gray-500">Issue Date: </span>
-                      <span className="font-medium">{new Date(invoice.issueDate).toLocaleDateString()}</span>
+                      <span className="font-medium">
+                        {new Date(invoice.issueDate).toLocaleDateString()}
+                      </span>
                     </div>
                     <div>
                       <span className="text-gray-500">Due Date: </span>
-                      <span className="font-medium">{new Date(invoice.dueDate).toLocaleDateString()}</span>
+                      <span className="font-medium">
+                        {new Date(invoice.dueDate).toLocaleDateString()}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -108,19 +142,38 @@ export function InvoicePreview() {
                 <table className="w-full">
                   <thead>
                     <tr style={{ backgroundColor: brandColor }}>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-white">Description</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-white">Qty</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-white">Unit Price</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-white">Total</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-white">
+                        Description
+                      </th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-white">
+                        Qty
+                      </th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-white">
+                        Unit Price
+                      </th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-white">
+                        Total
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {invoice.items.map((item, index) => (
-                      <tr key={item.id} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
-                        <td className="px-4 py-3 text-sm">{item.description}</td>
-                        <td className="px-4 py-3 text-sm text-right">{item.quantity}</td>
-                        <td className="px-4 py-3 text-sm text-right">${item.unitPrice.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-sm text-right font-medium">${item.total.toFixed(2)}</td>
+                      <tr
+                        key={item.id}
+                        className={index % 2 === 0 ? "bg-gray-50" : ""}
+                      >
+                        <td className="px-4 py-3 text-sm">
+                          {item.description}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right">
+                          {item.quantity}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right">
+                          {formatCurrency(item.unitPrice)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right font-medium">
+                          {formatCurrency(item.total)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -132,18 +185,27 @@ export function InvoicePreview() {
                 <div className="w-full sm:w-80 space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Subtotal</span>
-                    <span className="font-medium">${invoice.subtotal.toFixed(2)}</span>
+                    <span className="font-medium">
+                      {formatCurrency(invoice.subtotal)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Tax ({invoice.taxRate}%)</span>
-                    <span className="font-medium">${invoice.taxAmount.toFixed(2)}</span>
+                    <span className="text-gray-600">
+                      Tax ({invoice.taxRate}%)
+                    </span>
+                    <span className="font-medium">
+                      {formatCurrency(invoice.taxAmount)}
+                    </span>
                   </div>
-                  <div 
+                  <div
                     className="flex justify-between text-lg font-bold pt-3 border-t-2 px-4 py-3 rounded"
-                    style={{ borderColor: brandColor, backgroundColor: `${brandColor}15` }}
+                    style={{
+                      borderColor: brandColor,
+                      backgroundColor: `${brandColor}15`,
+                    }}
                   >
                     <span>Total</span>
-                    <span>${invoice.total.toFixed(2)}</span>
+                    <span>{formatCurrency(invoice.total)}</span>
                   </div>
                 </div>
               </div>
@@ -151,15 +213,21 @@ export function InvoicePreview() {
               {/* Notes */}
               {invoice.notes && (
                 <div className="mb-8 p-4 bg-gray-50 rounded">
-                  <div className="text-sm font-semibold text-gray-500 mb-2">NOTES</div>
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap">{invoice.notes}</div>
+                  <div className="text-sm font-semibold text-gray-500 mb-2">
+                    NOTES
+                  </div>
+                  <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {invoice.notes}
+                  </div>
                 </div>
               )}
 
               {/* Bank Details */}
               {(settings.bankName || settings.accountNumber) && (
                 <div className="mb-8 p-4 border-2 border-gray-200 rounded">
-                  <div className="text-sm font-semibold text-gray-500 mb-2">PAYMENT INFORMATION</div>
+                  <div className="text-sm font-semibold text-gray-500 mb-2">
+                    PAYMENT INFORMATION
+                  </div>
                   <div className="space-y-1 text-sm text-gray-700">
                     {settings.bankName && (
                       <div>
@@ -170,13 +238,17 @@ export function InvoicePreview() {
                     {settings.accountName && (
                       <div>
                         <span className="text-gray-500">Account Name: </span>
-                        <span className="font-medium">{settings.accountName}</span>
+                        <span className="font-medium">
+                          {settings.accountName}
+                        </span>
                       </div>
                     )}
                     {settings.accountNumber && (
                       <div>
                         <span className="text-gray-500">Account Number: </span>
-                        <span className="font-mono font-medium">{settings.accountNumber}</span>
+                        <span className="font-mono font-medium">
+                          {settings.accountNumber}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -186,11 +258,15 @@ export function InvoicePreview() {
               {/* Signature */}
               {invoice.signature && (
                 <div className="border-t-2 border-gray-200 pt-6">
-                  <div className="text-sm font-semibold text-gray-500 mb-3">ACKNOWLEDGEMENT SIGNATURE</div>
+                  <div className="text-sm font-semibold text-gray-500 mb-3">
+                    ACKNOWLEDGEMENT SIGNATURE
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-gray-500">Signed by: </span>
-                      <span className="font-medium">{invoice.signature.signerName}</span>
+                      <span className="font-medium">
+                        {invoice.signature.signerName}
+                      </span>
                     </div>
                     <div>
                       <span className="text-gray-500">Email: </span>
@@ -198,7 +274,9 @@ export function InvoicePreview() {
                     </div>
                     <div className="sm:col-span-2">
                       <span className="text-gray-500">Date: </span>
-                      <span className="font-medium">{new Date(invoice.signature.signedAt).toLocaleString()}</span>
+                      <span className="font-medium">
+                        {new Date(invoice.signature.signedAt).toLocaleString()}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -207,7 +285,7 @@ export function InvoicePreview() {
               {/* Footer */}
               <div className="mt-12 pt-6 border-t border-gray-200 text-center text-xs text-gray-500">
                 <p>Thank you for your business!</p>
-                <p className="mt-1">This invoice was generated by Invoxa</p>
+                <p className="mt-1">This invoice was generated by Recepita</p>
               </div>
             </div>
           </div>

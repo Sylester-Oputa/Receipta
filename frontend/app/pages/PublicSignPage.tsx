@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useApp } from '@/app/contexts/AppContext';
 import { ThemeToggle } from '@/app/components/ThemeToggle';
 import { SignaturePad } from '@/app/components/SignaturePad';
 import { Button } from '@/app/components/ui/button';
@@ -10,13 +9,40 @@ import { Checkbox } from '@/app/components/ui/checkbox';
 import { CheckCircle2, Download, FileSignature } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
+import { API_URL, publicApi } from '@/lib/api';
+import { formatCurrency } from '@/app/utils/format';
+
+type PublicInvoiceResponse = {
+  id: string;
+  invoiceNo: string;
+  status: string;
+  issueDate: string;
+  dueDate?: string;
+  subtotal: any;
+  taxRate: any;
+  taxTotal: any;
+  total: any;
+  brandColor: string;
+  business: {
+    name: string;
+    logoUrl?: string;
+  };
+  client: {
+    name: string;
+  };
+  signature?: {
+    signerName: string;
+    signerEmail: string;
+    signedAt: string;
+  } | null;
+};
+
+const toNumber = (value: any) => (value == null ? 0 : Number(value));
 
 export function PublicSignPage() {
   const { token } = useParams<{ token: string }>();
-  const { invoices, clients, signInvoice, settings } = useApp();
-
-  const invoice = invoices.find(inv => inv.signToken === token);
-  const client = invoice ? clients.find(c => c.id === invoice.clientId) : null;
+  const [invoice, setInvoice] = useState<PublicInvoiceResponse | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [signerName, setSignerName] = useState('');
   const [signerEmail, setSignerEmail] = useState('');
@@ -25,7 +51,33 @@ export function PublicSignPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  if (!invoice || !client) {
+  useEffect(() => {
+    if (!token) return;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const response = await publicApi.viewInvoiceForSign(token);
+        setInvoice(response.data);
+      } catch {
+        setInvoice(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [token]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center text-muted-foreground">Loading invoice...</div>
+      </div>
+    );
+  }
+
+  if (!invoice || !token) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center">
@@ -36,7 +88,7 @@ export function PublicSignPage() {
     );
   }
 
-  const brandColor = settings.brandColor;
+  const brandColor = invoice.brandColor || '#0F172A';
   const alreadySigned = !!invoice.signature;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,26 +111,32 @@ export function PublicSignPage() {
 
     setSubmitting(true);
 
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    const result = signInvoice(token!, {
-      signerName,
-      signerEmail,
-      signedAt: new Date().toISOString(),
-      signatureData,
-    });
-
-    setSubmitting(false);
-
-    if (result) {
+    try {
+      await publicApi.signInvoice(token, {
+        signerName,
+        signerEmail,
+        acknowledge: true,
+        signatureDataUrl: signatureData,
+      });
       setSuccess(true);
       toast.success('Invoice signed successfully');
-    } else {
-      toast.error('Unable to sign invoice');
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || 'Unable to sign invoice',
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  if (alreadySigned) {
+  const handleDownloadSigned = () => {
+    window.open(
+      `${API_URL}/v1/public/invoices/pdf/${token}?signed=true`,
+      '_blank',
+    );
+  };
+
+  if (alreadySigned && invoice.signature) {
     return (
       <div className="min-h-screen bg-background">
         <div className="absolute top-4 right-4">
@@ -102,10 +160,10 @@ export function PublicSignPage() {
             </div>
             <h1 className="text-2xl font-semibold mb-2">Already Signed</h1>
             <p className="text-muted-foreground mb-6">
-              This invoice has already been signed by {invoice.signature!.signerName} on{' '}
-              {new Date(invoice.signature!.signedAt).toLocaleDateString()}.
+              This invoice has already been signed by {invoice.signature.signerName} on{' '}
+              {new Date(invoice.signature.signedAt).toLocaleDateString()}.
             </p>
-            <Button variant="outline" className="w-full sm:w-auto">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={handleDownloadSigned}>
               <Download className="h-4 w-4 mr-2" />
               Download Signed Copy
             </Button>
@@ -139,11 +197,12 @@ export function PublicSignPage() {
             </div>
             <h1 className="text-2xl font-semibold mb-2">Successfully Signed!</h1>
             <p className="text-muted-foreground mb-6">
-              Thank you for signing {invoice.invoiceNumber}. A confirmation has been sent to {signerEmail}.
+              Thank you for signing {invoice.invoiceNo}. A confirmation has been sent to {signerEmail}.
             </p>
             <Button 
               className="w-full sm:w-auto"
               style={{ backgroundColor: brandColor, color: 'white' }}
+              onClick={handleDownloadSigned}
             >
               <Download className="h-4 w-4 mr-2" />
               Download Signed Copy
@@ -177,7 +236,7 @@ export function PublicSignPage() {
             </div>
             <h1 className="text-2xl font-semibold mb-2">Sign Invoice</h1>
             <p className="text-muted-foreground">
-              Please review and sign invoice {invoice.invoiceNumber}
+              Please review and sign invoice {invoice.invoiceNo}
             </p>
           </div>
 
@@ -189,23 +248,25 @@ export function PublicSignPage() {
                 <div className="p-6 space-y-4">
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">From</div>
-                    <div className="font-semibold">{settings.businessName}</div>
+                    <div className="font-semibold">{invoice.business.name}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">To</div>
-                    <div className="font-medium">{client.name}</div>
+                    <div className="font-medium">{invoice.client.name}</div>
                   </div>
                   <div className="border-t border-border pt-4">
                     <div className="text-sm text-muted-foreground mb-1">Invoice Number</div>
-                    <div className="font-medium">{invoice.invoiceNumber}</div>
+                    <div className="font-medium">{invoice.invoiceNo}</div>
                   </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Due Date</div>
-                    <div className="font-medium">{new Date(invoice.dueDate).toLocaleDateString()}</div>
-                  </div>
+                  {invoice.dueDate && (
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-1">Due Date</div>
+                      <div className="font-medium">{new Date(invoice.dueDate).toLocaleDateString()}</div>
+                    </div>
+                  )}
                   <div className="border-t border-border pt-4">
                     <div className="text-sm text-muted-foreground mb-1">Total Amount</div>
-                    <div className="text-2xl font-semibold">${invoice.total.toFixed(2)}</div>
+                    <div className="text-2xl font-semibold">{formatCurrency(toNumber(invoice.total))}</div>
                   </div>
                 </div>
               </div>

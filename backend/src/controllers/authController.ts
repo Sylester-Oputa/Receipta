@@ -1,20 +1,36 @@
 import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions } from "jsonwebtoken";
 import { prisma } from "../db/prisma";
 import { env } from "../config/env";
 import { AppError } from "../utils/errors";
 import { logAuditEvent } from "../services/auditService";
 
-const signToken = (payload: { sub: string; businessId: string; role: string }) =>
-  jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
+const signToken = (payload: {
+  sub: string;
+  businessId: string;
+  role: string;
+}) =>
+  jwt.sign(payload, env.jwtSecret, {
+    expiresIn: env.jwtExpiresIn,
+  } as SignOptions);
 
-export const login = async (req: Request, res: Response, next: NextFunction) => {
+export const login = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { email, password } = req.body as { email: string; password: string };
+    const normalizedEmail = email.trim().toLowerCase();
 
     const user = await prisma.user.findFirst({
-      where: { email }
+      where: {
+        email: {
+          equals: normalizedEmail,
+          mode: "insensitive",
+        },
+      },
     });
 
     if (!user) {
@@ -32,7 +48,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const token = signToken({
       sub: user.id,
       businessId: user.businessId,
-      role: user.role
+      role: user.role,
     });
 
     await logAuditEvent({
@@ -42,7 +58,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       entityId: user.id,
       type: "LOGIN",
       ipAddress: req.ip,
-      userAgent: req.get("user-agent")
+      userAgent: req.get("user-agent"),
     });
 
     return res.json({
@@ -51,8 +67,8 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         id: user.id,
         email: user.email,
         role: user.role,
-        businessId: user.businessId
-      }
+        businessId: user.businessId,
+      },
     });
   } catch (error) {
     return next(error);
@@ -75,11 +91,15 @@ export const me = async (req: Request, res: Response) => {
     email: user.email,
     role: user.role,
     businessId: user.businessId,
-    isActive: user.isActive
+    isActive: user.isActive,
   });
 };
 
-export const changePassword = async (req: Request, res: Response, next: NextFunction) => {
+export const changePassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -98,13 +118,17 @@ export const changePassword = async (req: Request, res: Response, next: NextFunc
 
     const matches = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!matches) {
-      throw new AppError(400, "Current password is incorrect", "INVALID_PASSWORD");
+      throw new AppError(
+        400,
+        "Current password is incorrect",
+        "INVALID_PASSWORD",
+      );
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({
       where: { id: userId },
-      data: { passwordHash }
+      data: { passwordHash },
     });
 
     await logAuditEvent({
@@ -114,7 +138,7 @@ export const changePassword = async (req: Request, res: Response, next: NextFunc
       entityId: user.id,
       type: "PASSWORD_CHANGED",
       ipAddress: req.ip,
-      userAgent: req.get("user-agent")
+      userAgent: req.get("user-agent"),
     });
 
     return res.json({ message: "Password updated" });

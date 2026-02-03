@@ -10,19 +10,36 @@ import { motion } from 'motion/react';
 import { toast } from 'sonner';
 
 export function Settings() {
-  const { settings, updateSettings } = useApp();
+  const { settings, updateSettings, uploadLogo } = useApp();
   const [formData, setFormData] = useState(settings);
   const [saving, setSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-    updateSettings(formData);
-    
-    setSaving(false);
-    toast.success('Settings saved successfully');
+
+    try {
+      await updateSettings(formData);
+      toast.success('Settings saved successfully');
+    } catch {
+      // Errors are handled in context
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLogoUploading(true);
+    const uploadedUrl = await uploadLogo(file);
+    if (uploadedUrl) {
+      setFormData((prev) => ({ ...prev, logoUrl: uploadedUrl }));
+      toast.success('Logo uploaded');
+    }
+    setLogoUploading(false);
   };
 
   const getContrastColor = (hexColor: string): string => {
@@ -137,6 +154,32 @@ export function Settings() {
             {/* Branding */}
             <div className="bg-card border border-border rounded-lg p-6 space-y-4">
               <h3 className="font-semibold">Branding</h3>
+
+              <div className="space-y-2">
+                <Label htmlFor="logo">Business Logo (PNG or JPG)</Label>
+                {formData.logoUrl && (
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={formData.logoUrl}
+                      alt="Business logo"
+                      className="h-12 w-auto rounded border border-border bg-white p-1"
+                    />
+                    <span className="text-xs text-muted-foreground truncate">
+                      {formData.logoUrl}
+                    </span>
+                  </div>
+                )}
+                <Input
+                  id="logo"
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  onChange={handleLogoChange}
+                  disabled={logoUploading}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Uploads to Cloudinary and updates your business logo.
+                </p>
+              </div>
               
               <div className="space-y-2">
                 <Label htmlFor="brandColor">Brand Primary Color</Label>

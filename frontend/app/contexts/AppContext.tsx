@@ -1,6 +1,21 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  authApi,
+  invoiceApi,
+  clientApi,
+  paymentApi,
+  businessApi,
+} from "@/lib/api";
+import { toast } from "sonner";
+import { formatCurrency } from "@/app/utils/format";
 
-export type InvoiceStatus = 'DRAFT' | 'SENT' | 'SIGNED' | 'PART_PAID' | 'PAID' | 'VOIDED';
+export type InvoiceStatus =
+  | "DRAFT"
+  | "SENT"
+  | "SIGNED"
+  | "PART_PAID"
+  | "PAID"
+  | "VOIDED";
 
 export interface Client {
   id: string;
@@ -8,6 +23,7 @@ export interface Client {
   email: string;
   phone: string;
   address: string;
+  contactName?: string;
 }
 
 export interface InvoiceItem {
@@ -23,17 +39,19 @@ export interface Payment {
   invoiceId: string;
   amount: number;
   date: string;
-  method: 'CASH' | 'TRANSFER' | 'POS';
+  method: "CASH" | "TRANSFER" | "POS";
   note: string;
-  receiptNumber: string;
-  balanceAfter: number;
+  receiptNumber?: string;
+  balanceAfter?: number;
+  receiptId?: string;
+  isReversal?: boolean;
 }
 
 export interface Signature {
   signerName: string;
   signerEmail: string;
   signedAt: string;
-  signatureData: string;
+  signatureData?: string;
 }
 
 export interface Invoice {
@@ -49,18 +67,26 @@ export interface Invoice {
   taxAmount: number;
   total: number;
   notes: string;
-  viewToken: string;
-  signToken: string;
+  viewToken?: string;
+  signToken?: string;
   signature?: Signature;
   createdAt: string;
   sentAt?: string;
   version: number;
+  currency: string;
 }
 
 export interface TimelineEvent {
   id: string;
   invoiceId: string;
-  type: 'CREATED' | 'SENT' | 'VIEWED' | 'SIGNED' | 'PAYMENT' | 'REVISED' | 'VOIDED';
+  type:
+    | "CREATED"
+    | "SENT"
+    | "VIEWED"
+    | "SIGNED"
+    | "PAYMENT"
+    | "REVISED"
+    | "VOIDED";
   timestamp: string;
   description: string;
   metadata?: any;
@@ -71,7 +97,7 @@ export interface BusinessSettings {
   address: string;
   phone: string;
   email: string;
-  logo?: string;
+  logoUrl?: string;
   bankName: string;
   accountName: string;
   accountNumber: string;
@@ -82,419 +108,618 @@ interface AppContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  
+
   clients: Client[];
-  addClient: (client: Omit<Client, 'id'>) => void;
-  updateClient: (id: string, client: Partial<Client>) => void;
-  deleteClient: (id: string) => void;
-  
+  addClient: (client: Omit<Client, "id">) => Promise<void>;
+  updateClient: (id: string, client: Partial<Client>) => Promise<void>;
+  deleteClient: (id: string) => Promise<void>;
+
   invoices: Invoice[];
-  addInvoice: (invoice: Omit<Invoice, 'id' | 'invoiceNumber' | 'viewToken' | 'signToken' | 'createdAt' | 'version'>) => void;
-  updateInvoice: (id: string, invoice: Partial<Invoice>) => void;
-  sendInvoice: (id: string) => void;
-  signInvoice: (signToken: string, signature: Signature) => boolean;
-  voidInvoice: (id: string) => void;
-  reviseInvoice: (id: string) => string;
-  
+  addInvoice: (
+    invoice: Omit<
+      Invoice,
+      | "id"
+      | "invoiceNumber"
+      | "viewToken"
+      | "signToken"
+      | "createdAt"
+      | "version"
+    >,
+  ) => Promise<Invoice | null>;
+  updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
+  sendInvoice: (id: string) => Promise<{ viewToken: string; signToken: string } | null>;
+  voidInvoice: (id: string) => Promise<void>;
+  reviseInvoice: (id: string) => Promise<string | null>;
+
   payments: Payment[];
-  addPayment: (payment: Omit<Payment, 'id' | 'receiptNumber'>) => void;
-  
+  addPayment: (payment: Omit<Payment, "id" | "receiptNumber" | "balanceAfter" | "receiptId">) => Promise<void>;
+
   timeline: TimelineEvent[];
   getInvoiceTimeline: (invoiceId: string) => TimelineEvent[];
-  
+
   settings: BusinessSettings;
-  updateSettings: (settings: Partial<BusinessSettings>) => void;
+  updateSettings: (settings: Partial<BusinessSettings>) => Promise<void>;
+  uploadLogo: (file: File) => Promise<string | null>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const defaultSettings: BusinessSettings = {
-  businessName: 'Invoxa Demo Corp',
-  address: '123 Business St, Suite 100, San Francisco, CA 94102',
-  phone: '+1 (555) 123-4567',
-  email: 'billing@invoxademo.com',
-  bankName: 'Demo Bank',
-  accountName: 'Invoxa Demo Corp',
-  accountNumber: '1234567890',
-  brandColor: '#3b82f6',
+  businessName: "",
+  address: "",
+  phone: "",
+  email: "",
+  logoUrl: "",
+  bankName: "",
+  accountName: "",
+  accountNumber: "",
+  brandColor: "#0F172A",
 };
 
-// Generate mock data
-const generateMockClients = (): Client[] => [
-  { id: 'c1', name: 'Acme Corporation', email: 'accounts@acme.com', phone: '+1 (555) 111-1111', address: '456 Tech Blvd, Austin, TX 78701' },
-  { id: 'c2', name: 'TechStart Inc', email: 'billing@techstart.com', phone: '+1 (555) 222-2222', address: '789 Innovation Dr, Seattle, WA 98101' },
-  { id: 'c3', name: 'Global Ventures Ltd', email: 'finance@globalventures.com', phone: '+1 (555) 333-3333', address: '321 Enterprise Way, New York, NY 10001' },
-];
+const toNumber = (value: any) => (value == null ? 0 : Number(value));
 
-const generateMockInvoices = (clients: Client[]): Invoice[] => [
-  {
-    id: 'inv1',
-    invoiceNumber: 'INV-2026-0001',
-    clientId: clients[0].id,
-    issueDate: '2026-01-15',
-    dueDate: '2026-02-14',
-    status: 'PAID',
-    items: [
-      { id: 'item1', description: 'Website Development', quantity: 1, unitPrice: 5000, total: 5000 },
-      { id: 'item2', description: 'Hosting Setup', quantity: 1, unitPrice: 500, total: 500 },
-    ],
-    subtotal: 5500,
-    taxRate: 10,
-    taxAmount: 550,
-    total: 6050,
-    notes: 'Thank you for your business!',
-    viewToken: 'view_abc123',
-    signToken: 'sign_abc123',
-    signature: {
-      signerName: 'John Doe',
-      signerEmail: 'john@acme.com',
-      signedAt: '2026-01-16T10:30:00Z',
-      signatureData: 'data:image/png;base64,mock_signature_data',
-    },
-    createdAt: '2026-01-15T09:00:00Z',
-    sentAt: '2026-01-15T09:30:00Z',
-    version: 1,
-  },
-  {
-    id: 'inv2',
-    invoiceNumber: 'INV-2026-0002',
-    clientId: clients[1].id,
-    issueDate: '2026-01-20',
-    dueDate: '2026-02-19',
-    status: 'PART_PAID',
-    items: [
-      { id: 'item3', description: 'Mobile App Development - Phase 1', quantity: 1, unitPrice: 12000, total: 12000 },
-      { id: 'item4', description: 'UI/UX Design', quantity: 1, unitPrice: 3000, total: 3000 },
-    ],
-    subtotal: 15000,
-    taxRate: 10,
-    taxAmount: 1500,
-    total: 16500,
-    notes: 'Phase 1 deliverables included.',
-    viewToken: 'view_def456',
-    signToken: 'sign_def456',
-    signature: {
-      signerName: 'Sarah Smith',
-      signerEmail: 'sarah@techstart.com',
-      signedAt: '2026-01-21T14:20:00Z',
-      signatureData: 'data:image/png;base64,mock_signature_data_2',
-    },
-    createdAt: '2026-01-20T11:00:00Z',
-    sentAt: '2026-01-20T11:15:00Z',
-    version: 1,
-  },
-  {
-    id: 'inv3',
-    invoiceNumber: 'INV-2026-0003',
-    clientId: clients[2].id,
-    issueDate: '2026-02-01',
-    dueDate: '2026-03-03',
-    status: 'SENT',
-    items: [
-      { id: 'item5', description: 'Consulting Services - January 2026', quantity: 40, unitPrice: 150, total: 6000 },
-    ],
-    subtotal: 6000,
-    taxRate: 10,
-    taxAmount: 600,
-    total: 6600,
-    notes: '',
-    viewToken: 'view_ghi789',
-    signToken: 'sign_ghi789',
-    createdAt: '2026-02-01T08:00:00Z',
-    sentAt: '2026-02-01T08:30:00Z',
-    version: 1,
-  },
-  {
-    id: 'inv4',
-    invoiceNumber: 'INV-2026-0004',
-    clientId: clients[0].id,
-    issueDate: '2026-02-03',
-    dueDate: '2026-03-05',
-    status: 'DRAFT',
-    items: [
-      { id: 'item6', description: 'Database Optimization', quantity: 1, unitPrice: 2500, total: 2500 },
-    ],
-    subtotal: 2500,
-    taxRate: 10,
-    taxAmount: 250,
-    total: 2750,
-    notes: '',
-    viewToken: 'view_jkl012',
-    signToken: 'sign_jkl012',
-    createdAt: '2026-02-03T10:00:00Z',
-    version: 1,
-  },
-];
+const mapClient = (client: any): Client => ({
+  id: client.id,
+  name: client.name ?? "",
+  email: client.email ?? "",
+  phone: client.phone ?? "",
+  address: client.address ?? "",
+  contactName: client.contactName ?? undefined,
+});
 
-const generateMockPayments = (): Payment[] => [
-  {
-    id: 'pay1',
-    invoiceId: 'inv1',
-    amount: 6050,
-    date: '2026-01-18',
-    method: 'TRANSFER',
-    note: 'Full payment received',
-    receiptNumber: 'RCT-2026-0001',
-    balanceAfter: 0,
-  },
-  {
-    id: 'pay2',
-    invoiceId: 'inv2',
-    amount: 8000,
-    date: '2026-01-25',
-    method: 'TRANSFER',
-    note: 'Partial payment',
-    receiptNumber: 'RCT-2026-0002',
-    balanceAfter: 8500,
-  },
-];
+const mapInvoiceItem = (item: any): InvoiceItem => ({
+  id: item.id,
+  description: item.description ?? "",
+  quantity: toNumber(item.qty ?? item.quantity),
+  unitPrice: toNumber(item.unitPrice),
+  total: toNumber(item.lineTotal ?? item.total),
+});
 
-const generateMockTimeline = (): TimelineEvent[] => [
-  { id: 'e1', invoiceId: 'inv1', type: 'CREATED', timestamp: '2026-01-15T09:00:00Z', description: 'Invoice created' },
-  { id: 'e2', invoiceId: 'inv1', type: 'SENT', timestamp: '2026-01-15T09:30:00Z', description: 'Invoice sent to client' },
-  { id: 'e3', invoiceId: 'inv1', type: 'VIEWED', timestamp: '2026-01-15T15:20:00Z', description: 'Client viewed invoice' },
-  { id: 'e4', invoiceId: 'inv1', type: 'SIGNED', timestamp: '2026-01-16T10:30:00Z', description: 'Invoice signed by John Doe' },
-  { id: 'e5', invoiceId: 'inv1', type: 'PAYMENT', timestamp: '2026-01-18T11:00:00Z', description: 'Payment received: $6,050.00' },
-  { id: 'e6', invoiceId: 'inv2', type: 'CREATED', timestamp: '2026-01-20T11:00:00Z', description: 'Invoice created' },
-  { id: 'e7', invoiceId: 'inv2', type: 'SENT', timestamp: '2026-01-20T11:15:00Z', description: 'Invoice sent to client' },
-  { id: 'e8', invoiceId: 'inv2', type: 'SIGNED', timestamp: '2026-01-21T14:20:00Z', description: 'Invoice signed by Sarah Smith' },
-  { id: 'e9', invoiceId: 'inv2', type: 'PAYMENT', timestamp: '2026-01-25T09:00:00Z', description: 'Payment received: $8,000.00' },
-  { id: 'e10', invoiceId: 'inv3', type: 'CREATED', timestamp: '2026-02-01T08:00:00Z', description: 'Invoice created' },
-  { id: 'e11', invoiceId: 'inv3', type: 'SENT', timestamp: '2026-02-01T08:30:00Z', description: 'Invoice sent to client' },
-  { id: 'e12', invoiceId: 'inv4', type: 'CREATED', timestamp: '2026-02-03T10:00:00Z', description: 'Invoice created' },
-];
+const mapSignature = (signature: any): Signature => ({
+  signerName: signature.signerName,
+  signerEmail: signature.signerEmail,
+  signedAt: signature.signedAt,
+});
+
+const mapInvoice = (
+  invoice: any,
+  tokens?: { viewToken?: string; signToken?: string },
+): Invoice => ({
+  id: invoice.id,
+  invoiceNumber: invoice.invoiceNo ?? invoice.invoiceNumber ?? "",
+  clientId: invoice.clientId,
+  issueDate: invoice.issueDate,
+  dueDate: invoice.dueDate ?? "",
+  status: invoice.status,
+  items: Array.isArray(invoice.items)
+    ? invoice.items.map(mapInvoiceItem)
+    : [],
+  subtotal: toNumber(invoice.subtotal),
+  taxRate: toNumber(invoice.taxRate),
+  taxAmount: toNumber(invoice.taxTotal ?? invoice.taxAmount),
+  total: toNumber(invoice.total),
+  notes: invoice.notes ?? "",
+  viewToken: tokens?.viewToken,
+  signToken: tokens?.signToken,
+  signature: invoice.signature ? mapSignature(invoice.signature) : undefined,
+  createdAt: invoice.createdAt ?? invoice.issueDate,
+  sentAt: invoice.sentAt ?? undefined,
+  version: invoice.version ?? 1,
+  currency: invoice.currency ?? "NGN",
+});
+
+const mapPayment = (payment: any): Payment => ({
+  id: payment.id,
+  invoiceId: payment.invoiceId,
+  amount: toNumber(payment.amount),
+  date: payment.paidAt ?? payment.createdAt,
+  method: payment.method,
+  note: payment.note ?? "",
+  receiptNumber: payment.receipt?.receiptNo ?? undefined,
+  balanceAfter: payment.receipt ? toNumber(payment.receipt.balanceAfter) : undefined,
+  receiptId: payment.receipt?.id ?? undefined,
+  isReversal: payment.isReversal ?? false,
+});
+
+const mapBusinessSettings = (business: any): BusinessSettings => {
+  const bankDetails = (business.bankDetailsJson ?? {}) as Record<string, any>;
+  return {
+    businessName: business.name ?? "",
+    address: business.address ?? "",
+    phone: business.phone ?? "",
+    email: business.email ?? "",
+    logoUrl: business.logoUrl ?? "",
+    bankName: bankDetails.bankName ?? "",
+    accountName: bankDetails.accountName ?? "",
+    accountNumber: bankDetails.accountNumber ?? "",
+    brandColor: business.brandingPrimaryColor ?? "#0F172A",
+  };
+};
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [clients, setClients] = useState<Client[]>(generateMockClients());
+  const [clients, setClients] = useState<Client[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [payments, setPayments] = useState<Payment[]>(generateMockPayments());
-  const [timeline, setTimeline] = useState<TimelineEvent[]>(generateMockTimeline());
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [settings, setSettings] = useState<BusinessSettings>(defaultSettings);
+  const [linkTokens, setLinkTokens] = useState<
+    Record<string, { viewToken: string; signToken: string }>
+  >({});
+
+  const tokenLookup = useMemo(() => {
+    const lookup: Record<string, { viewToken?: string; signToken?: string }> = {};
+    invoices.forEach((invoice) => {
+      if (invoice.viewToken && invoice.signToken) {
+        lookup[invoice.id] = {
+          viewToken: invoice.viewToken,
+          signToken: invoice.signToken,
+        };
+      }
+    });
+    return lookup;
+  }, [invoices]);
+
+  const pushTimelineEvent = (event: Omit<TimelineEvent, "id">) => {
+    setTimeline((prev) => [
+      ...prev,
+      { id: `e${Date.now()}`, ...event },
+    ]);
+  };
+
+  const loadPaymentsForInvoices = async (invoiceIds: string[]) => {
+    if (invoiceIds.length === 0) {
+      setPayments([]);
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      invoiceIds.map((id) => paymentApi.getByInvoice(id)),
+    );
+    const allPayments: Payment[] = [];
+
+    results.forEach((result) => {
+      if (result.status === "fulfilled") {
+        const mapped = Array.isArray(result.value.data)
+          ? result.value.data.map(mapPayment)
+          : [];
+        allPayments.push(...mapped);
+      }
+    });
+
+    setPayments(allPayments);
+  };
+
+  const loadInitialData = async () => {
+    try {
+      const [businessRes, clientsRes, invoicesRes] = await Promise.all([
+        businessApi.getCurrent(),
+        clientApi.getAll(),
+        invoiceApi.getAll(),
+      ]);
+
+      setSettings(mapBusinessSettings(businessRes.data));
+      setClients(
+        Array.isArray(clientsRes.data)
+          ? clientsRes.data.map(mapClient)
+          : [],
+      );
+
+      setInvoices((prev) => {
+        const tokens = new Map(
+          prev.map((inv) => [
+            inv.id,
+            { viewToken: inv.viewToken, signToken: inv.signToken },
+          ]),
+        );
+        return Array.isArray(invoicesRes.data)
+          ? invoicesRes.data.map((inv) => mapInvoice(inv, tokens.get(inv.id)))
+          : [];
+      });
+
+      const invoiceIds = Array.isArray(invoicesRes.data)
+        ? invoicesRes.data.map((inv: any) => inv.id)
+        : [];
+      await loadPaymentsForInvoices(invoiceIds);
+    } catch (error) {
+      toast.error("Failed to load data");
+    }
+  };
 
   useEffect(() => {
-    setInvoices(generateMockInvoices(clients));
+    const token = localStorage.getItem("auth_token");
+    if (!token) {
+      return;
+    }
+
+    authApi
+      .me()
+      .then(() => {
+        setIsAuthenticated(true);
+        loadInitialData();
+      })
+      .catch(() => {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("user");
+        setIsAuthenticated(false);
+      });
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock login - accept any email/password for demo
-    await new Promise(resolve => setTimeout(resolve, 500));
-    if (email && password) {
-      setIsAuthenticated(true);
-      return true;
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setClients([]);
+      setInvoices([]);
+      setPayments([]);
+      setTimeline([]);
+      setSettings(defaultSettings);
+      setLinkTokens({});
     }
-    return false;
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (settings.brandColor) {
+      document.documentElement.style.setProperty("--primary", settings.brandColor);
+    }
+  }, [settings.brandColor]);
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const response = await authApi.login(email, password);
+      const { token, user } = response.data;
+
+      localStorage.setItem("auth_token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      setIsAuthenticated(true);
+      await loadInitialData();
+      toast.success("Logged in successfully");
+      return true;
+    } catch (error: any) {
+      const errorData = error.response?.data;
+      const errorMessage =
+        errorData?.error?.message || errorData?.message || "Login failed";
+      toast.error(errorMessage);
+      return false;
+    }
   };
 
   const logout = () => {
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("user");
     setIsAuthenticated(false);
+    toast.success("Logged out successfully");
   };
 
-  const addClient = (client: Omit<Client, 'id'>) => {
-    const newClient: Client = {
-      ...client,
-      id: `c${Date.now()}`,
-    };
-    setClients(prev => [...prev, newClient]);
+  const addClient = async (client: Omit<Client, "id">) => {
+    try {
+      const response = await clientApi.create({
+        name: client.name,
+        email: client.email || undefined,
+        phone: client.phone || undefined,
+        address: client.address || undefined,
+        contactName: client.contactName || undefined,
+      });
+      const mapped = mapClient(response.data);
+      setClients((prev) => [...prev, mapped]);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error?.message || "Failed to add client");
+      throw error;
+    }
   };
 
-  const updateClient = (id: string, updates: Partial<Client>) => {
-    setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  const updateClient = async (id: string, updates: Partial<Client>) => {
+    try {
+      const response = await clientApi.update(id, {
+        name: updates.name,
+        email: updates.email || undefined,
+        phone: updates.phone || undefined,
+        address: updates.address || undefined,
+        contactName: updates.contactName || undefined,
+      });
+      const mapped = mapClient(response.data);
+      setClients((prev) => prev.map((c) => (c.id === id ? mapped : c)));
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || "Failed to update client",
+      );
+      throw error;
+    }
   };
 
-  const deleteClient = (id: string) => {
-    setClients(prev => prev.filter(c => c.id !== id));
+  const deleteClient = async (id: string) => {
+    try {
+      await clientApi.archive(id);
+      setClients((prev) => prev.filter((c) => c.id !== id));
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || "Failed to delete client",
+      );
+      throw error;
+    }
   };
 
-  const generateInvoiceNumber = () => {
-    const year = new Date().getFullYear();
-    const count = invoices.filter(inv => inv.invoiceNumber.startsWith(`INV-${year}`)).length + 1;
-    return `INV-${year}-${String(count).padStart(4, '0')}`;
+  const addInvoice = async (
+    invoice: Omit<
+      Invoice,
+      | "id"
+      | "invoiceNumber"
+      | "viewToken"
+      | "signToken"
+      | "createdAt"
+      | "version"
+    >,
+  ): Promise<Invoice | null> => {
+    try {
+      const payload = {
+        clientId: invoice.clientId,
+        issueDate: invoice.issueDate || undefined,
+        dueDate: invoice.dueDate || undefined,
+        currency: invoice.currency || "NGN",
+        notes: invoice.notes || undefined,
+        taxRate: invoice.taxRate ?? 0,
+        items: invoice.items.map((item) => ({
+          description: item.description,
+          qty: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+        })),
+      };
+
+      const response = await invoiceApi.create(payload);
+      const mapped = mapInvoice(response.data, tokenLookup[response.data.id]);
+      setInvoices((prev) => [mapped, ...prev]);
+
+      pushTimelineEvent({
+        invoiceId: mapped.id,
+        type: "CREATED",
+        timestamp: new Date().toISOString(),
+        description: "Invoice created",
+      });
+
+      return mapped;
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || "Failed to create invoice",
+      );
+      return null;
+    }
   };
 
-  const addInvoice = (invoice: Omit<Invoice, 'id' | 'invoiceNumber' | 'viewToken' | 'signToken' | 'createdAt' | 'version'>) => {
-    const newInvoice: Invoice = {
-      ...invoice,
-      id: `inv${Date.now()}`,
-      invoiceNumber: generateInvoiceNumber(),
-      viewToken: `view_${Math.random().toString(36).substr(2, 9)}`,
-      signToken: `sign_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date().toISOString(),
-      version: 1,
-    };
-    setInvoices(prev => [...prev, newInvoice]);
-    
-    const event: TimelineEvent = {
-      id: `e${Date.now()}`,
-      invoiceId: newInvoice.id,
-      type: 'CREATED',
-      timestamp: new Date().toISOString(),
-      description: 'Invoice created',
-    };
-    setTimeline(prev => [...prev, event]);
+  const updateInvoice = async (id: string, updates: Partial<Invoice>) => {
+    try {
+      const payload = {
+        issueDate: updates.issueDate || undefined,
+        dueDate: updates.dueDate || undefined,
+        currency: updates.currency || "NGN",
+        notes: updates.notes || undefined,
+        taxRate: updates.taxRate ?? 0,
+        items: (updates.items ?? []).map((item) => ({
+          description: item.description,
+          qty: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+        })),
+      };
+
+      const response = await invoiceApi.update(id, payload);
+      const tokens = linkTokens[id] ?? tokenLookup[id];
+      const mapped = mapInvoice(response.data, tokens);
+      setInvoices((prev) => prev.map((inv) => (inv.id === id ? mapped : inv)));
+
+      pushTimelineEvent({
+        invoiceId: id,
+        type: "REVISED",
+        timestamp: new Date().toISOString(),
+        description: "Invoice updated",
+      });
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || "Failed to update invoice",
+      );
+      throw error;
+    }
   };
 
-  const updateInvoice = (id: string, updates: Partial<Invoice>) => {
-    setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, ...updates } : inv));
+  const sendInvoice = async (id: string) => {
+    try {
+      const response = await invoiceApi.send(id);
+      const tokens = response.data.tokens as {
+        viewToken: string;
+        signToken: string;
+      };
+
+      setLinkTokens((prev) => ({ ...prev, [id]: tokens }));
+      setInvoices((prev) =>
+        prev.map((inv) =>
+          inv.id === id
+            ? {
+                ...inv,
+                status: response.data.invoice.status,
+                sentAt: response.data.invoice.sentAt,
+                viewToken: tokens.viewToken,
+                signToken: tokens.signToken,
+              }
+            : inv,
+        ),
+      );
+
+      pushTimelineEvent({
+        invoiceId: id,
+        type: "SENT",
+        timestamp: new Date().toISOString(),
+        description: "Invoice sent",
+      });
+
+      return tokens;
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || "Failed to send invoice",
+      );
+      return null;
+    }
   };
 
-  const sendInvoice = (id: string) => {
-    setInvoices(prev => prev.map(inv => 
-      inv.id === id ? { ...inv, status: 'SENT', sentAt: new Date().toISOString() } : inv
-    ));
-    
-    const event: TimelineEvent = {
-      id: `e${Date.now()}`,
-      invoiceId: id,
-      type: 'SENT',
-      timestamp: new Date().toISOString(),
-      description: 'Invoice sent to client',
-    };
-    setTimeline(prev => [...prev, event]);
+  const voidInvoice = async (id: string) => {
+    try {
+      const response = await invoiceApi.void(id);
+      setInvoices((prev) =>
+        prev.map((inv) =>
+          inv.id === id ? { ...inv, status: response.data.status } : inv,
+        ),
+      );
+
+      pushTimelineEvent({
+        invoiceId: id,
+        type: "VOIDED",
+        timestamp: new Date().toISOString(),
+        description: "Invoice voided",
+      });
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || "Failed to void invoice",
+      );
+      throw error;
+    }
   };
 
-  const signInvoice = (signToken: string, signature: Signature): boolean => {
-    const invoice = invoices.find(inv => inv.signToken === signToken);
-    if (!invoice || invoice.signature) return false;
-    
-    setInvoices(prev => prev.map(inv => 
-      inv.signToken === signToken ? { ...inv, status: 'SIGNED', signature } : inv
-    ));
-    
-    const event: TimelineEvent = {
-      id: `e${Date.now()}`,
-      invoiceId: invoice.id,
-      type: 'SIGNED',
-      timestamp: new Date().toISOString(),
-      description: `Invoice signed by ${signature.signerName}`,
-    };
-    setTimeline(prev => [...prev, event]);
-    
-    return true;
+  const reviseInvoice = async (id: string) => {
+    try {
+      const response = await invoiceApi.revise(id);
+      const mapped = mapInvoice(response.data, tokenLookup[response.data.id]);
+      setInvoices((prev) => [mapped, ...prev]);
+
+      pushTimelineEvent({
+        invoiceId: mapped.id,
+        type: "REVISED",
+        timestamp: new Date().toISOString(),
+        description: `Revised to ${mapped.invoiceNumber}`,
+      });
+
+      return mapped.id;
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || "Failed to revise invoice",
+      );
+      return null;
+    }
   };
 
-  const voidInvoice = (id: string) => {
-    setInvoices(prev => prev.map(inv => 
-      inv.id === id ? { ...inv, status: 'VOIDED' } : inv
-    ));
-    
-    const event: TimelineEvent = {
-      id: `e${Date.now()}`,
-      invoiceId: id,
-      type: 'VOIDED',
-      timestamp: new Date().toISOString(),
-      description: 'Invoice voided',
-    };
-    setTimeline(prev => [...prev, event]);
-  };
+  const addPayment = async (
+    payment: Omit<Payment, "id" | "receiptNumber" | "balanceAfter" | "receiptId">,
+  ) => {
+    try {
+      const response = await paymentApi.create(payment.invoiceId, {
+        amount: payment.amount,
+        method: payment.method,
+        paidAt: payment.date,
+        note: payment.note || undefined,
+      });
 
-  const reviseInvoice = (id: string): string => {
-    const original = invoices.find(inv => inv.id === id);
-    if (!original) return '';
-    
-    const revised: Invoice = {
-      ...original,
-      id: `inv${Date.now()}`,
-      invoiceNumber: generateInvoiceNumber(),
-      status: 'DRAFT',
-      viewToken: `view_${Math.random().toString(36).substr(2, 9)}`,
-      signToken: `sign_${Math.random().toString(36).substr(2, 9)}`,
-      signature: undefined,
-      createdAt: new Date().toISOString(),
-      sentAt: undefined,
-      version: original.version + 1,
-    };
-    
-    setInvoices(prev => [...prev, revised]);
-    
-    const event: TimelineEvent = {
-      id: `e${Date.now()}`,
-      invoiceId: original.id,
-      type: 'REVISED',
-      timestamp: new Date().toISOString(),
-      description: `Revised to ${revised.invoiceNumber}`,
-    };
-    setTimeline(prev => [...prev, event]);
-    
-    return revised.id;
-  };
+      const mapped = mapPayment({
+        ...response.data.payment,
+        receipt: response.data.receipt,
+      });
 
-  const generateReceiptNumber = () => {
-    const year = new Date().getFullYear();
-    const count = payments.filter(p => p.receiptNumber.startsWith(`RCT-${year}`)).length + 1;
-    return `RCT-${year}-${String(count).padStart(4, '0')}`;
-  };
+      setPayments((prev) => [mapped, ...prev]);
 
-  const addPayment = (payment: Omit<Payment, 'id' | 'receiptNumber'>) => {
-    const invoice = invoices.find(inv => inv.id === payment.invoiceId);
-    if (!invoice) return;
-    
-    const totalPaid = payments
-      .filter(p => p.invoiceId === payment.invoiceId)
-      .reduce((sum, p) => sum + p.amount, 0) + payment.amount;
-    
-    const newPayment: Payment = {
-      ...payment,
-      id: `pay${Date.now()}`,
-      receiptNumber: generateReceiptNumber(),
-      balanceAfter: invoice.total - totalPaid,
-    };
-    
-    setPayments(prev => [...prev, newPayment]);
-    
-    const newStatus: InvoiceStatus = totalPaid >= invoice.total ? 'PAID' : 'PART_PAID';
-    setInvoices(prev => prev.map(inv => 
-      inv.id === payment.invoiceId ? { ...inv, status: newStatus } : inv
-    ));
-    
-    const event: TimelineEvent = {
-      id: `e${Date.now()}`,
-      invoiceId: payment.invoiceId,
-      type: 'PAYMENT',
-      timestamp: new Date().toISOString(),
-      description: `Payment received: $${payment.amount.toFixed(2)}`,
-    };
-    setTimeline(prev => [...prev, event]);
+      const invoiceRes = await invoiceApi.getById(payment.invoiceId);
+      const tokens = linkTokens[payment.invoiceId] ?? tokenLookup[payment.invoiceId];
+      const updatedInvoice = mapInvoice(invoiceRes.data, tokens);
+      setInvoices((prev) =>
+        prev.map((inv) =>
+          inv.id === payment.invoiceId ? updatedInvoice : inv,
+        ),
+      );
+
+      pushTimelineEvent({
+        invoiceId: payment.invoiceId,
+        type: "PAYMENT",
+        timestamp: new Date().toISOString(),
+        description: `Payment received: ${formatCurrency(payment.amount)}`,
+      });
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || "Failed to record payment",
+      );
+      throw error;
+    }
   };
 
   const getInvoiceTimeline = (invoiceId: string) => {
-    return timeline.filter(e => e.invoiceId === invoiceId).sort((a, b) => 
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
+    return timeline
+      .filter((e) => e.invoiceId === invoiceId)
+      .sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
   };
 
-  const updateSettings = (updates: Partial<BusinessSettings>) => {
-    setSettings(prev => ({ ...prev, ...updates }));
-    
-    // Update primary color in CSS
-    if (updates.brandColor) {
-      document.documentElement.style.setProperty('--primary', updates.brandColor);
+  const updateSettings = async (updates: Partial<BusinessSettings>) => {
+    try {
+      const payload: Record<string, unknown> = {};
+
+      if (updates.businessName !== undefined) payload.name = updates.businessName;
+      if (updates.address !== undefined) payload.address = updates.address;
+      if (updates.phone !== undefined) payload.phone = updates.phone;
+      if (updates.email !== undefined) payload.email = updates.email;
+      if (updates.logoUrl !== undefined) payload.logoUrl = updates.logoUrl;
+      if (updates.brandColor !== undefined)
+        payload.brandingPrimaryColor = updates.brandColor;
+
+      const bankDetails = {
+        bankName: updates.bankName ?? settings.bankName,
+        accountName: updates.accountName ?? settings.accountName,
+        accountNumber: updates.accountNumber ?? settings.accountNumber,
+      };
+      payload.bankDetailsJson = bankDetails;
+
+      const response = await businessApi.update(payload);
+      setSettings(mapBusinessSettings(response.data));
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || "Failed to update settings",
+      );
+      throw error;
+    }
+  };
+
+  const uploadLogo = async (file: File) => {
+    try {
+      const response = await businessApi.uploadLogo(file);
+      const logoUrl = response.data.logoUrl as string;
+      setSettings((prev) => ({ ...prev, logoUrl }));
+      return logoUrl;
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.error?.message || "Failed to upload logo",
+      );
+      return null;
     }
   };
 
   return (
-    <AppContext.Provider value={{
-      isAuthenticated,
-      login,
-      logout,
-      clients,
-      addClient,
-      updateClient,
-      deleteClient,
-      invoices,
-      addInvoice,
-      updateInvoice,
-      sendInvoice,
-      signInvoice,
-      voidInvoice,
-      reviseInvoice,
-      payments,
-      addPayment,
-      timeline,
-      getInvoiceTimeline,
-      settings,
-      updateSettings,
-    }}>
+    <AppContext.Provider
+      value={{
+        isAuthenticated,
+        login,
+        logout,
+        clients,
+        addClient,
+        updateClient,
+        deleteClient,
+        invoices,
+        addInvoice,
+        updateInvoice,
+        sendInvoice,
+        voidInvoice,
+        reviseInvoice,
+        payments,
+        addPayment,
+        timeline,
+        getInvoiceTimeline,
+        settings,
+        updateSettings,
+        uploadLogo,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
@@ -503,7 +728,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 export function useApp() {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useApp must be used within AppProvider');
+    throw new Error("useApp must be used within AppProvider");
   }
   return context;
 }

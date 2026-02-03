@@ -47,12 +47,17 @@ export function Register() {
     confirmPassword: "",
   });
 
+
   const handleBusinessChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    if (name === "businessCode") {
-      // Only allow uppercase letters and numbers, max 6 characters
-      const sanitized = value.replace(/[^A-Z0-9]/g, "").slice(0, 6);
-      setBusinessData((prev) => ({ ...prev, [name]: sanitized }));
+
+    if (name === "businessName") {
+      setBusinessData((prev) => ({ ...prev, [name]: value }));
+
+      // Auto-generate business code from first 3 letters of business name
+      const sanitizedName = value.replace(/[^A-Za-z]/g, "").toUpperCase();
+      const autoCode = sanitizedName.slice(0, 3).padEnd(3, "X");
+      setBusinessData((prev) => ({ ...prev, businessCode: autoCode }));
     } else {
       setBusinessData((prev) => ({ ...prev, [name]: value }));
     }
@@ -69,10 +74,6 @@ export function Register() {
   const validateStep1 = () => {
     if (!businessData.businessName.trim()) {
       toast.error("Business name is required");
-      return false;
-    }
-    if (businessData.businessCode.length < 3) {
-      toast.error("Business code must be at least 3 characters");
       return false;
     }
     return true;
@@ -124,7 +125,7 @@ export function Register() {
       };
 
       const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
       const response = await fetch(`${API_URL}/v1/setup/owner`, {
         method: "POST",
@@ -135,8 +136,42 @@ export function Register() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Setup failed");
+        const errorResponse = await response.json();
+        // Backend returns { error: { message, code, details } }
+        const error = errorResponse.error || errorResponse;
+
+        // If setup already exists (409), show helpful message
+        if (response.status === 409) {
+          const errorCode = error.code;
+
+          // Use the detailed backend message if available, otherwise use fallback
+          const errorMessages: Record<string, string> = {
+            SETUP_ALREADY_DONE:
+              "Setup already completed. Redirecting to login...",
+            BUSINESS_NAME_EXISTS:
+              error.message || "A business with this name already exists.",
+            BUSINESS_EMAIL_EXISTS:
+              error.message || "This business email is already registered.",
+            BUSINESS_PHONE_EXISTS:
+              error.message || "This phone number is already registered.",
+            OWNER_EMAIL_EXISTS:
+              error.message || "This owner email is already registered.",
+            BUSINESS_CODE_EXISTS:
+              error.message || "Business code already in use.",
+          };
+
+          const message =
+            errorMessages[errorCode] || error.message || "Conflict detected";
+          toast.error(message);
+
+          // Only redirect to login if setup is already done
+          if (errorCode === "SETUP_ALREADY_DONE") {
+            setTimeout(() => navigate("/login"), 1500);
+          }
+          return;
+        }
+
+        throw new Error(error.message || "Failed to complete setup");
       }
 
       const data = await response.json();
@@ -145,14 +180,16 @@ export function Register() {
       navigate("/login");
     } catch (error: any) {
       console.error("Setup error:", error);
-      toast.error(
-        error.message || "Failed to complete setup. Please try again.",
-      );
+      // Only show toast if we haven't already shown one for 409
+      if (!error.message?.includes("409")) {
+        toast.error(
+          error.message || "Failed to complete setup. Please try again.",
+        );
+      }
     } finally {
       setIsLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-secondary flex items-center justify-center p-4">
       <motion.div
@@ -264,13 +301,13 @@ export function Register() {
                         type="text"
                         placeholder="ACM"
                         value={businessData.businessCode}
-                        onChange={handleBusinessChange}
                         maxLength={6}
                         required
-                        className="uppercase"
+                        disabled
+                        className="uppercase bg-muted"
                       />
                       <p className="text-xs text-muted-foreground">
-                        3-6 uppercase letters/numbers
+                        Auto-generated from business name
                       </p>
                     </div>
 

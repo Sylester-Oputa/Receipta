@@ -1,20 +1,103 @@
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useApp } from '@/app/contexts/AppContext';
 import { StatusBadge } from '@/app/components/StatusBadge';
 import { ThemeToggle } from '@/app/components/ThemeToggle';
 import { Button } from '@/app/components/ui/button';
 import { Download, FileSignature } from 'lucide-react';
 import { motion } from 'motion/react';
+import { API_URL, publicApi } from '@/lib/api';
+import { formatCurrency } from '@/app/utils/format';
+
+type PublicInvoiceResponse = {
+  id: string;
+  invoiceNo: string;
+  status: string;
+  issueDate: string;
+  dueDate?: string;
+  currency: string;
+  notes?: string;
+  subtotal: any;
+  taxRate: any;
+  taxTotal: any;
+  total: any;
+  brandColor: string;
+  business: {
+    name: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    logoUrl?: string;
+    bankDetails?: {
+      bankName?: string;
+      accountName?: string;
+      accountNumber?: string;
+    } | null;
+  };
+  client: {
+    name: string;
+    contactName?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+  };
+  items: Array<{
+    id: string;
+    description: string;
+    qty: any;
+    unitPrice: any;
+    lineTotal: any;
+  }>;
+  signature?: {
+    signerName: string;
+    signerEmail: string;
+    signedAt: string;
+  } | null;
+};
+
+const toNumber = (value: any) => (value == null ? 0 : Number(value));
 
 export function PublicInvoiceView() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const { invoices, clients, settings } = useApp();
+  const [invoice, setInvoice] = useState<PublicInvoiceResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [canSign, setCanSign] = useState(false);
 
-  const invoice = invoices.find(inv => inv.viewToken === token || inv.signToken === token);
-  const client = invoice ? clients.find(c => c.id === invoice.clientId) : null;
+  useEffect(() => {
+    if (!token) return;
 
-  if (!invoice || !client) {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const response = await publicApi.viewInvoice(token);
+        setInvoice(response.data);
+        setCanSign(false);
+      } catch {
+        try {
+          const response = await publicApi.viewInvoiceForSign(token);
+          setInvoice(response.data);
+          setCanSign(true);
+        } catch {
+          setInvoice(null);
+          setCanSign(false);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [token]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center text-muted-foreground">Loading invoice...</div>
+      </div>
+    );
+  }
+
+  if (!invoice || !token) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center">
@@ -25,8 +108,17 @@ export function PublicInvoiceView() {
     );
   }
 
-  const brandColor = settings.brandColor;
+  const brandColor = invoice.brandColor || '#0F172A';
   const isSigned = !!invoice.signature;
+  const bankDetails = invoice.business.bankDetails ?? {};
+
+  const handleDownloadPdf = () => {
+    const signedParam = isSigned ? '?signed=true' : '';
+    window.open(
+      `${API_URL}/v1/public/invoices/pdf/${token}${signedParam}`,
+      '_blank',
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -47,29 +139,36 @@ export function PublicInvoiceView() {
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
                 <div>
                   <div className="text-sm text-muted-foreground mb-2">From</div>
-                  <div className="font-semibold text-lg">{settings.businessName}</div>
+                  {invoice.business.logoUrl && (
+                    <img
+                      src={invoice.business.logoUrl}
+                      alt={`${invoice.business.name} logo`}
+                      className="h-10 mb-2 object-contain"
+                    />
+                  )}
+                  <div className="font-semibold text-lg">{invoice.business.name}</div>
                   <div className="text-sm text-muted-foreground mt-1 whitespace-pre-line">
-                    {settings.address}
+                    {invoice.business.address}
                   </div>
                   <div className="text-sm text-muted-foreground mt-2">
-                    <div>{settings.phone}</div>
-                    <div>{settings.email}</div>
+                    <div>{invoice.business.phone}</div>
+                    <div>{invoice.business.email}</div>
                   </div>
                 </div>
                 <div className="text-left sm:text-right">
-                  <div className="text-2xl font-semibold mb-2">{invoice.invoiceNumber}</div>
-                  <StatusBadge status={invoice.status} />
+                  <div className="text-2xl font-semibold mb-2">{invoice.invoiceNo}</div>
+                  <StatusBadge status={invoice.status as any} />
                 </div>
               </div>
 
               <div className="border-t border-border pt-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <div className="text-sm text-muted-foreground mb-2">Bill To</div>
-                  <div className="font-medium">{client.name}</div>
+                  <div className="font-medium">{invoice.client.name}</div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    <div>{client.address}</div>
-                    <div className="mt-1">{client.email}</div>
-                    <div>{client.phone}</div>
+                    <div>{invoice.client.address}</div>
+                    <div className="mt-1">{invoice.client.email}</div>
+                    <div>{invoice.client.phone}</div>
                   </div>
                 </div>
                 <div className="sm:text-right">
@@ -78,10 +177,12 @@ export function PublicInvoiceView() {
                       <span className="text-muted-foreground">Issue Date: </span>
                       <span className="font-medium">{new Date(invoice.issueDate).toLocaleDateString()}</span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Due Date: </span>
-                      <span className="font-medium">{new Date(invoice.dueDate).toLocaleDateString()}</span>
-                    </div>
+                    {invoice.dueDate && (
+                      <div>
+                        <span className="text-muted-foreground">Due Date: </span>
+                        <span className="font-medium">{new Date(invoice.dueDate).toLocaleDateString()}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -104,9 +205,9 @@ export function PublicInvoiceView() {
                   {invoice.items.map((item) => (
                     <tr key={item.id}>
                       <td className="px-4 py-3">{item.description}</td>
-                      <td className="px-4 py-3 text-right">{item.quantity}</td>
-                      <td className="px-4 py-3 text-right">${item.unitPrice.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right">${item.total.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right">{toNumber(item.qty)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(toNumber(item.unitPrice))}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(toNumber(item.lineTotal))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -115,15 +216,15 @@ export function PublicInvoiceView() {
             <div className="border-t border-border p-4 sm:p-6 space-y-2 bg-muted">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>${invoice.subtotal.toFixed(2)}</span>
+                <span>{formatCurrency(toNumber(invoice.subtotal))}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Tax ({invoice.taxRate}%)</span>
-                <span>${invoice.taxAmount.toFixed(2)}</span>
+                <span className="text-muted-foreground">Tax ({toNumber(invoice.taxRate)}%)</span>
+                <span>{formatCurrency(toNumber(invoice.taxTotal))}</span>
               </div>
               <div className="flex justify-between font-semibold pt-2 border-t border-border text-lg">
                 <span>Total</span>
-                <span>${invoice.total.toFixed(2)}</span>
+                <span>{formatCurrency(toNumber(invoice.total))}</span>
               </div>
             </div>
           </div>
@@ -137,26 +238,26 @@ export function PublicInvoiceView() {
           )}
 
           {/* Bank Details */}
-          {(settings.bankName || settings.accountNumber) && (
+          {(bankDetails.bankName || bankDetails.accountNumber) && (
             <div className="bg-card border border-border rounded-lg p-6 mb-6">
               <h3 className="font-semibold mb-3">Payment Information</h3>
               <div className="space-y-1 text-sm">
-                {settings.bankName && (
+                {bankDetails.bankName && (
                   <div>
                     <span className="text-muted-foreground">Bank: </span>
-                    <span>{settings.bankName}</span>
+                    <span>{bankDetails.bankName}</span>
                   </div>
                 )}
-                {settings.accountName && (
+                {bankDetails.accountName && (
                   <div>
                     <span className="text-muted-foreground">Account Name: </span>
-                    <span>{settings.accountName}</span>
+                    <span>{bankDetails.accountName}</span>
                   </div>
                 )}
-                {settings.accountNumber && (
+                {bankDetails.accountNumber && (
                   <div>
                     <span className="text-muted-foreground">Account Number: </span>
-                    <span className="font-mono">{settings.accountNumber}</span>
+                    <span className="font-mono">{bankDetails.accountNumber}</span>
                   </div>
                 )}
               </div>
@@ -191,15 +292,15 @@ export function PublicInvoiceView() {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
-            <Button className="flex-1" variant="outline">
+            <Button className="flex-1" variant="outline" onClick={handleDownloadPdf}>
               <Download className="h-4 w-4 mr-2" />
               Download PDF
             </Button>
-            {!isSigned && (
+            {canSign && !isSigned && (
               <Button 
                 className="flex-1"
                 style={{ backgroundColor: brandColor, color: 'white' }}
-                onClick={() => navigate(`/i/${invoice.signToken}/sign`)}
+                onClick={() => navigate(`/i/${token}/sign`)}
               >
                 <FileSignature className="h-4 w-4 mr-2" />
                 Sign to Acknowledge

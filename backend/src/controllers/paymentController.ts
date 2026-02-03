@@ -181,6 +181,7 @@ export const listPayments = async (req: Request, res: Response) => {
 
   const payments = await prisma.payment.findMany({
     where: { invoiceId: req.params.id, businessId },
+    include: { receipt: true },
     orderBy: { createdAt: "desc" }
   });
 

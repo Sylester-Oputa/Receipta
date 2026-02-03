@@ -2,7 +2,7 @@ import { Router } from "express";
 import { publicRateLimit } from "../middleware/rateLimit";
 import { validate } from "../middleware/validate";
 import { tokenParamSchema } from "../validators";
-import { getInvoicePdfPublic, signInvoice, viewInvoice } from "../controllers/publicController";
+import { getInvoicePdfPublic, signInvoice, viewInvoice, viewInvoiceForSign } from "../controllers/publicController";
 import { signatureUpload } from "../middleware/upload";
 import { asyncHandler } from "../utils/asyncHandler";
 
@@ -28,6 +28,28 @@ router.get(
   publicRateLimit,
   validate({ params: tokenParamSchema }),
   asyncHandler(viewInvoice)
+);
+
+/**
+ * @openapi
+ * /api/v1/public/invoices/sign/{token}:
+ *   get:
+ *     tags: [Public]
+ *     summary: View invoice for signing via token
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Public invoice view (sign)
+ */
+router.get(
+  "/invoices/sign/:token",
+  publicRateLimit,
+  validate({ params: tokenParamSchema }),
+  asyncHandler(viewInvoiceForSign)
 );
 
 /**

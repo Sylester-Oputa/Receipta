@@ -50,7 +50,7 @@ export function Clients() {
     setFormData({ name: '', email: '', phone: '', address: '' });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name.trim() || !formData.email.trim()) {
@@ -58,21 +58,28 @@ export function Clients() {
       return;
     }
 
-    if (editingClient) {
-      updateClient(editingClient.id, formData);
-      toast.success('Client updated successfully');
-    } else {
-      addClient(formData);
-      toast.success('Client added successfully');
+    try {
+      if (editingClient) {
+        await updateClient(editingClient.id, formData);
+        toast.success('Client updated successfully');
+      } else {
+        await addClient(formData);
+        toast.success('Client added successfully');
+      }
+      handleCloseModal();
+    } catch {
+      // Errors are handled in context
     }
-
-    handleCloseModal();
   };
 
-  const handleDelete = (client: Client) => {
+  const handleDelete = async (client: Client) => {
     if (window.confirm(`Are you sure you want to delete ${client.name}?`)) {
-      deleteClient(client.id);
-      toast.success('Client deleted');
+      try {
+        await deleteClient(client.id);
+        toast.success('Client deleted');
+      } catch {
+        // Errors are handled in context
+      }
     }
   };
 

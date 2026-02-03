@@ -49,7 +49,7 @@ export function Login() {
           className="w-full max-w-sm"
         >
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-semibold mb-2">Invoxa</h1>
+            <h1 className="text-3xl font-semibold mb-2">Recepita</h1>
             <p className="text-muted-foreground">Sign in to your account</p>
           </div>
 
@@ -119,9 +119,6 @@ export function Login() {
               </div>
             </form>
 
-            <div className="mt-6 text-center text-sm text-muted-foreground">
-              Demo: Use any email/password to login
-            </div>
           </div>
         </motion.div>
       </div>

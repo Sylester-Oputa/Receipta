@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, Plus, Trash2, Save } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/app/utils/format';
 
 export function CreateInvoice() {
   const { id } = useParams<{ id: string }>();
@@ -60,7 +61,7 @@ export function CreateInvoice() {
   const taxAmount = subtotal * (parseFloat(taxRate) || 0) / 100;
   const total = subtotal + taxAmount;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!clientId) {
       toast.error('Please select a client');
       return;
@@ -85,16 +86,23 @@ export function CreateInvoice() {
       taxAmount,
       total,
       notes,
+      currency: existingInvoice?.currency || 'NGN',
     };
 
-    if (isEdit && existingInvoice) {
-      updateInvoice(existingInvoice.id, invoiceData);
-      toast.success('Invoice updated');
-      navigate(`/invoices/${existingInvoice.id}`);
-    } else {
-      addInvoice(invoiceData);
-      toast.success('Invoice created');
-      navigate('/invoices');
+    try {
+      if (isEdit && existingInvoice) {
+        await updateInvoice(existingInvoice.id, invoiceData);
+        toast.success('Invoice updated');
+        navigate(`/invoices/${existingInvoice.id}`);
+      } else {
+        const created = await addInvoice(invoiceData);
+        if (created) {
+          toast.success('Invoice created');
+          navigate(`/invoices/${created.id}`);
+        }
+      }
+    } catch {
+      // Errors are handled in context
     }
   };
 
@@ -222,7 +230,7 @@ export function CreateInvoice() {
                         <div className="space-y-2">
                           <Label>Total</Label>
                           <Input
-                            value={`$${item.total.toFixed(2)}`}
+                            value={formatCurrency(item.total)}
                             disabled
                           />
                         </div>
@@ -249,15 +257,15 @@ export function CreateInvoice() {
               <div className="border-t border-border bg-muted p-6 space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">${subtotal.toFixed(2)}</span>
+                  <span className="font-medium">{formatCurrency(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Tax ({taxRate}%)</span>
-                  <span className="font-medium">${taxAmount.toFixed(2)}</span>
+                  <span className="font-medium">{formatCurrency(taxAmount)}</span>
                 </div>
                 <div className="flex justify-between pt-3 border-t border-border">
                   <span className="font-semibold">Total</span>
-                  <span className="text-xl font-semibold">${total.toFixed(2)}</span>
+                  <span className="text-xl font-semibold">{formatCurrency(total)}</span>
                 </div>
               </div>
             </div>

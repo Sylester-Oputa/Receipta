@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma";
 
 export const logAuditEvent = async (input: {
@@ -17,9 +18,9 @@ export const logAuditEvent = async (input: {
       entityType: input.entityType,
       entityId: input.entityId,
       type: input.type,
-      metaJson: input.metaJson ?? undefined,
+      metaJson: input.metaJson as Prisma.InputJsonValue | undefined,
       ipAddress: input.ipAddress ?? undefined,
-      userAgent: input.userAgent ?? undefined
-    }
+      userAgent: input.userAgent ?? undefined,
+    },
   });
 };

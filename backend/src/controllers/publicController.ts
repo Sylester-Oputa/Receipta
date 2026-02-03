@@ -17,13 +17,13 @@ const loadInvoiceByToken = async (token: string, type: InvoiceLinkType) => {
     where: {
       tokenHash,
       type,
-      revokedAt: null
+      revokedAt: null,
     },
     include: {
       invoice: {
-        include: { items: true, client: true, business: true, signature: true }
-      }
-    }
+        include: { items: true, client: true, business: true, signature: true },
+      },
+    },
   });
 
   if (!link) {
@@ -37,48 +37,89 @@ const loadInvoiceByToken = async (token: string, type: InvoiceLinkType) => {
   return link.invoice;
 };
 
-export const viewInvoice = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const invoice = await loadInvoiceByToken(req.params.token, InvoiceLinkType.VIEW);
+const serializePublicInvoice = (invoice: Awaited<ReturnType<typeof loadInvoiceByToken>>) => ({
+  id: invoice.id,
+  invoiceNo: invoice.invoiceNo,
+  status: invoice.status,
+  issueDate: invoice.issueDate,
+  dueDate: invoice.dueDate,
+  currency: invoice.currency,
+  notes: invoice.notes,
+  subtotal: invoice.subtotal,
+  taxRate: invoice.taxRate,
+  taxTotal: invoice.taxTotal,
+  total: invoice.total,
+  brandColor: invoice.brandColor,
+  business: {
+    name: invoice.business.name,
+    address: invoice.business.address,
+    phone: invoice.business.phone,
+    email: invoice.business.email,
+    logoUrl: invoice.business.logoUrl,
+    bankDetails: invoice.business.bankDetailsJson ?? null,
+  },
+  client: {
+    name: invoice.client.name,
+    contactName: invoice.client.contactName,
+    email: invoice.client.email,
+    phone: invoice.client.phone,
+    address: invoice.client.address,
+  },
+  items: invoice.items,
+  signature: invoice.signature
+    ? {
+        signerName: invoice.signature.signerName,
+        signerEmail: invoice.signature.signerEmail,
+        signedAt: invoice.signature.signedAt,
+      }
+    : null,
+});
 
-    return res.json({
-      id: invoice.id,
-      invoiceNo: invoice.invoiceNo,
-      status: invoice.status,
-      issueDate: invoice.issueDate,
-      dueDate: invoice.dueDate,
-      currency: invoice.currency,
-      notes: invoice.notes,
-      subtotal: invoice.subtotal,
-      taxRate: invoice.taxRate,
-      taxTotal: invoice.taxTotal,
-      total: invoice.total,
-      brandColor: invoice.brandColor,
-      business: {
-        name: invoice.business.name,
-        address: invoice.business.address,
-        phone: invoice.business.phone,
-        email: invoice.business.email,
-        logoUrl: invoice.business.logoUrl
-      },
-      client: {
-        name: invoice.client.name,
-        contactName: invoice.client.contactName,
-        email: invoice.client.email,
-        phone: invoice.client.phone,
-        address: invoice.client.address
-      },
-      items: invoice.items
-    });
+export const viewInvoice = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const invoice = await loadInvoiceByToken(
+      req.params.token,
+      InvoiceLinkType.VIEW,
+    );
+
+    return res.json(serializePublicInvoice(invoice));
   } catch (error) {
     return next(error);
   }
 };
 
-export const getInvoicePdfPublic = async (req: Request, res: Response, next: NextFunction) => {
+export const viewInvoiceForSign = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const invoice = await loadInvoiceByToken(
+      req.params.token,
+      InvoiceLinkType.SIGN,
+    );
+
+    return res.json(serializePublicInvoice(invoice));
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getInvoicePdfPublic = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const signed = req.query.signed === "true";
-    const invoice = await loadInvoiceByToken(req.params.token, InvoiceLinkType.VIEW);
+    const invoice = await loadInvoiceByToken(
+      req.params.token,
+      InvoiceLinkType.VIEW,
+    );
 
     if (signed) {
       if (!invoice.signature) {
@@ -89,7 +130,10 @@ export const getInvoicePdfPublic = async (req: Request, res: Response, next: Nex
       }
       const buffer = fs.readFileSync(invoice.signature.signedPdfPath);
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `inline; filename=invoice-${invoice.invoiceNo}-signed.pdf`);
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename=invoice-${invoice.invoiceNo}-signed.pdf`,
+      );
       return res.send(buffer);
     }
 
@@ -97,20 +141,30 @@ export const getInvoicePdfPublic = async (req: Request, res: Response, next: Nex
       business: invoice.business,
       client: invoice.client,
       invoice,
-      items: invoice.items
+      items: invoice.items,
     });
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename=invoice-${invoice.invoiceNo}.pdf`);
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename=invoice-${invoice.invoiceNo}.pdf`,
+    );
     return res.send(buffer);
   } catch (error) {
     return next(error);
   }
 };
 
-export const signInvoice = async (req: Request, res: Response, next: NextFunction) => {
+export const signInvoice = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    const invoice = await loadInvoiceByToken(req.params.token, InvoiceLinkType.SIGN);
+    const invoice = await loadInvoiceByToken(
+      req.params.token,
+      InvoiceLinkType.SIGN,
+    );
 
     if (invoice.signature) {
       throw new AppError(409, "Invoice already signed", "ALREADY_SIGNED");
@@ -119,27 +173,40 @@ export const signInvoice = async (req: Request, res: Response, next: NextFunctio
       throw new AppError(409, "Cannot sign a voided invoice", "INVOICE_LOCKED");
     }
     if (invoice.status === InvoiceStatus.DRAFT) {
-      throw new AppError(409, "Invoice must be sent before signing", "INVOICE_LOCKED");
+      throw new AppError(
+        409,
+        "Invoice must be sent before signing",
+        "INVOICE_LOCKED",
+      );
     }
 
-    const { signerName, signerEmail, acknowledge, signatureDataUrl, signatureImageBase64 } =
-      req.body as {
-        signerName: string;
-        signerEmail: string;
-        acknowledge: boolean | string;
-        signatureDataUrl?: string;
-        signatureImageBase64?: string;
-      };
+    const {
+      signerName,
+      signerEmail,
+      acknowledge,
+      signatureDataUrl,
+      signatureImageBase64,
+    } = req.body as {
+      signerName: string;
+      signerEmail: string;
+      acknowledge: boolean | string;
+      signatureDataUrl?: string;
+      signatureImageBase64?: string;
+    };
 
     const acknowledged = acknowledge === true || acknowledge === "true";
     if (!signerName || !signerEmail || !acknowledged) {
-      throw new AppError(400, "Signer name, email, and acknowledge=true are required", "VALIDATION_ERROR");
+      throw new AppError(
+        400,
+        "Signer name, email, and acknowledge=true are required",
+        "VALIDATION_ERROR",
+      );
     }
 
     const normalized = await normalizeSignature({
       signatureDataUrl,
       signatureImageBase64,
-      file: req.file
+      file: req.file,
     });
 
     const signedAt = new Date();
@@ -151,10 +218,13 @@ export const signInvoice = async (req: Request, res: Response, next: NextFunctio
       signaturePath: normalized.filePath,
       signerName,
       signerEmail,
-      signedAt
+      signedAt,
     });
 
-    const signedPdfPath = path.join(signedPdfDir, `${invoice.id}-${randomUUID()}.pdf`);
+    const signedPdfPath = path.join(
+      signedPdfDir,
+      `${invoice.id}-${randomUUID()}.pdf`,
+    );
     fs.writeFileSync(signedPdfPath, pdfBuffer);
 
     const documentHash = hashSha256(pdfBuffer);
@@ -169,11 +239,11 @@ export const signInvoice = async (req: Request, res: Response, next: NextFunctio
             signerEmail,
             signatureFilePath: normalized.filePath,
             signedAt,
-            ipAddress: req.ip,
+            ipAddress: req.ip ?? "",
             userAgent: req.get("user-agent") ?? "",
             documentHash,
-            signedPdfPath
-          }
+            signedPdfPath,
+          },
         });
 
         const updatedInvoice = await tx.invoice.update({
@@ -181,19 +251,22 @@ export const signInvoice = async (req: Request, res: Response, next: NextFunctio
           data: {
             status: InvoiceStatus.SIGNED,
             signedAt,
-            lockedAt: signedAt
-          }
+            lockedAt: signedAt,
+          },
         });
 
         await tx.invoiceLink.updateMany({
           where: { invoiceId: invoice.id, type: "SIGN", revokedAt: null },
-          data: { revokedAt: signedAt }
+          data: { revokedAt: signedAt },
         });
 
         return { signature, updatedInvoice };
       })
       .catch((error) => {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
           throw new AppError(409, "Invoice already signed", "ALREADY_SIGNED");
         }
         throw error;
@@ -206,12 +279,12 @@ export const signInvoice = async (req: Request, res: Response, next: NextFunctio
       type: "INVOICE_SIGNED",
       metaJson: { signerName, signerEmail },
       ipAddress: req.ip,
-      userAgent: req.get("user-agent")
+      userAgent: req.get("user-agent"),
     });
 
     return res.json({
       invoice: saved.updatedInvoice,
-      signature: saved.signature
+      signature: saved.signature,
     });
   } catch (error) {
     return next(error);

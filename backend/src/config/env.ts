@@ -14,6 +14,10 @@ const envSchema = z.object({
   STORAGE_DIR: z.string().optional(),
   RATE_LIMIT_WINDOW_MS: z.string().optional(),
   RATE_LIMIT_MAX: z.string().optional(),
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  CLOUDINARY_FOLDER: z.string().optional(),
   SEED_BUSINESS_NAME: z.string().optional(),
   SEED_BUSINESS_CODE: z.string().optional(),
   SEED_OWNER_EMAIL: z.string().optional(),
@@ -44,6 +48,12 @@ export const env = {
   storageDir: raw.STORAGE_DIR ?? "storage",
   rateLimitWindowMs: Number(raw.RATE_LIMIT_WINDOW_MS ?? 60_000),
   rateLimitMax: Number(raw.RATE_LIMIT_MAX ?? 60),
+  cloudinary: {
+    cloudName: raw.CLOUDINARY_CLOUD_NAME,
+    apiKey: raw.CLOUDINARY_API_KEY,
+    apiSecret: raw.CLOUDINARY_API_SECRET,
+    folder: raw.CLOUDINARY_FOLDER ?? "receipta/logos"
+  },
   seed: {
     businessName: raw.SEED_BUSINESS_NAME ?? "Receipta Demo Business",
     businessCode: raw.SEED_BUSINESS_CODE ?? "RCP",

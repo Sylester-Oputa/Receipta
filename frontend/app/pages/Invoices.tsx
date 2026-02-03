@@ -23,6 +23,7 @@ import {
 import { Plus, Search, FileText } from 'lucide-react';
 import { motion } from 'motion/react';
 import { InvoiceStatus } from '@/app/contexts/AppContext';
+import { formatCurrency } from '@/app/utils/format';
 
 export function Invoices() {
   const { invoices, clients, payments } = useApp();
@@ -152,9 +153,9 @@ export function Invoices() {
                       <TableCell>
                         <StatusBadge status={invoice.status} />
                       </TableCell>
-                      <TableCell className="text-right">${invoice.total.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(invoice.total)}</TableCell>
                       <TableCell className="text-right">
-                        ${getInvoiceBalance(invoice.id, invoice.total).toFixed(2)}
+                        {formatCurrency(getInvoiceBalance(invoice.id, invoice.total))}
                       </TableCell>
                     </TableRow>
                   ))
@@ -195,7 +196,7 @@ export function Invoices() {
                     </div>
                     <div className="text-right">
                       <div className="text-muted-foreground">Balance</div>
-                      <div className="font-medium">${getInvoiceBalance(invoice.id, invoice.total).toFixed(2)}</div>
+                      <div className="font-medium">{formatCurrency(getInvoiceBalance(invoice.id, invoice.total))}</div>
                     </div>
                   </div>
                 </motion.div>

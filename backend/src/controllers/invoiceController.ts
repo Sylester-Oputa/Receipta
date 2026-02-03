@@ -125,7 +125,7 @@ export const listInvoices = async (req: Request, res: Response) => {
       businessId,
       ...(status ? { status } : {})
     },
-    include: { client: true },
+    include: { client: true, items: true, signature: true },
     orderBy: { createdAt: "desc" }
   });
 

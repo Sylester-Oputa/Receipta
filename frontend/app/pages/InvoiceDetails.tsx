@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, Eye, Send, Edit, FileX, Copy, Plus, Download, Clock, CheckCircle2, DollarSign, Lock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
+import { API_URL } from '@/lib/api';
+import { formatCurrency } from '@/app/utils/format';
 
 export function InvoiceDetails() {
   const { id } = useParams<{ id: string }>();
@@ -53,13 +55,14 @@ export function InvoiceDetails() {
   const canVoid = invoice.status !== 'VOIDED' && invoicePayments.length === 0;
   const isLocked = invoice.status !== 'DRAFT' && invoice.status !== 'VOIDED';
 
-  const handleSendInvoice = () => {
-    sendInvoice(invoice.id);
-    setShowSendModal(false);
-    toast.success('Invoice sent successfully');
+  const handleSendInvoice = async () => {
+    const tokens = await sendInvoice(invoice.id);
+    if (tokens) {
+      toast.success('Invoice sent successfully');
+    }
   };
 
-  const handleAddPayment = () => {
+  const handleAddPayment = async () => {
     const amount = parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error('Please enter a valid amount');
@@ -70,36 +73,57 @@ export function InvoiceDetails() {
       return;
     }
 
-    addPayment({
-      invoiceId: invoice.id,
-      amount,
-      date: paymentDate,
-      method: paymentMethod,
-      note: paymentNote,
-      balanceAfter: balance - amount,
-    });
+    try {
+      await addPayment({
+        invoiceId: invoice.id,
+        amount,
+        date: paymentDate,
+        method: paymentMethod,
+        note: paymentNote,
+      });
 
-    setShowPaymentModal(false);
-    setPaymentAmount('');
-    setPaymentNote('');
-    toast.success('Payment recorded successfully');
-  };
-
-  const handleVoid = () => {
-    if (window.confirm('Are you sure you want to void this invoice? This cannot be undone.')) {
-      voidInvoice(invoice.id);
-      toast.success('Invoice voided');
+      setShowPaymentModal(false);
+      setPaymentAmount('');
+      setPaymentNote('');
+      toast.success('Payment recorded successfully');
+    } catch {
+      // Errors are handled in context
     }
   };
 
-  const handleRevise = () => {
-    const newId = reviseInvoice(invoice.id);
-    navigate(`/invoices/${newId}`);
-    toast.success('New revision created');
+  const handleVoid = async () => {
+    if (window.confirm('Are you sure you want to void this invoice? This cannot be undone.')) {
+      try {
+        await voidInvoice(invoice.id);
+        toast.success('Invoice voided');
+      } catch {
+        // Errors are handled in context
+      }
+    }
   };
 
-  const viewUrl = `${window.location.origin}/i/${invoice.viewToken}`;
-  const signUrl = `${window.location.origin}/i/${invoice.signToken}/sign`;
+  const handleRevise = async () => {
+    const newId = await reviseInvoice(invoice.id);
+    if (newId) {
+      navigate(`/invoices/${newId}`);
+      toast.success('New revision created');
+    }
+  };
+
+  const viewUrl = invoice.viewToken
+    ? `${window.location.origin}/i/${invoice.viewToken}`
+    : '';
+  const signUrl = invoice.signToken
+    ? `${window.location.origin}/i/${invoice.signToken}/sign`
+    : '';
+
+  const handleDownloadReceipt = (receiptId?: string) => {
+    if (!receiptId) {
+      toast.error('Receipt not available');
+      return;
+    }
+    window.open(`${API_URL}/v1/receipts/${receiptId}/pdf`, '_blank');
+  };
 
   return (
     <AppShell>
@@ -188,15 +212,15 @@ export function InvoiceDetails() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="bg-card border border-border rounded-lg p-4">
               <div className="text-sm text-muted-foreground mb-1">Total Amount</div>
-              <div className="text-2xl font-semibold">${invoice.total.toFixed(2)}</div>
+              <div className="text-2xl font-semibold">{formatCurrency(invoice.total)}</div>
             </div>
             <div className="bg-card border border-border rounded-lg p-4">
               <div className="text-sm text-muted-foreground mb-1">Paid</div>
-              <div className="text-2xl font-semibold text-[var(--success)]">${totalPaid.toFixed(2)}</div>
+              <div className="text-2xl font-semibold text-[var(--success)]">{formatCurrency(totalPaid)}</div>
             </div>
             <div className="bg-card border border-border rounded-lg p-4">
               <div className="text-sm text-muted-foreground mb-1">Balance</div>
-              <div className="text-2xl font-semibold">${balance.toFixed(2)}</div>
+              <div className="text-2xl font-semibold">{formatCurrency(balance)}</div>
             </div>
           </div>
 
@@ -229,8 +253,8 @@ export function InvoiceDetails() {
                         <tr key={item.id}>
                           <td className="px-4 py-3">{item.description}</td>
                           <td className="px-4 py-3 text-right">{item.quantity}</td>
-                          <td className="px-4 py-3 text-right">${item.unitPrice.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right">${item.total.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right">{formatCurrency(item.unitPrice)}</td>
+                          <td className="px-4 py-3 text-right">{formatCurrency(item.total)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -239,15 +263,15 @@ export function InvoiceDetails() {
                 <div className="border-t border-border p-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span>${invoice.subtotal.toFixed(2)}</span>
+                    <span>{formatCurrency(invoice.subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Tax ({invoice.taxRate}%)</span>
-                    <span>${invoice.taxAmount.toFixed(2)}</span>
+                    <span>{formatCurrency(invoice.taxAmount)}</span>
                   </div>
                   <div className="flex justify-between font-semibold pt-2 border-t border-border">
                     <span>Total</span>
-                    <span>${invoice.total.toFixed(2)}</span>
+                    <span>{formatCurrency(invoice.total)}</span>
                   </div>
                 </div>
               </div>
@@ -330,13 +354,25 @@ export function InvoiceDetails() {
                       <tbody className="divide-y divide-border">
                         {invoicePayments.map((payment) => (
                           <tr key={payment.id}>
-                            <td className="px-4 py-3 font-medium">{payment.receiptNumber}</td>
-                            <td className="px-4 py-3">{new Date(payment.date).toLocaleDateString()}</td>
+                            <td className="px-4 py-3 font-medium">
+                              {payment.receiptNumber || '--'}
+                            </td>
+                            <td className="px-4 py-3">
+                              {payment.date ? new Date(payment.date).toLocaleDateString() : '--'}
+                            </td>
                             <td className="px-4 py-3 capitalize">{payment.method.toLowerCase()}</td>
-                            <td className="px-4 py-3 text-right">${payment.amount.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-right">${payment.balanceAfter.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-right">{formatCurrency(payment.amount)}</td>
                             <td className="px-4 py-3 text-right">
-                              <Button variant="ghost" size="sm">
+                              {payment.balanceAfter == null
+                                ? '--'
+                                : formatCurrency(payment.balanceAfter)}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDownloadReceipt(payment.receiptId)}
+                              >
                                 <Download className="h-4 w-4" />
                               </Button>
                             </td>
@@ -374,7 +410,7 @@ export function InvoiceDetails() {
                 <Button variant="outline" onClick={() => setShowSendModal(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleSendInvoice}>
+                <Button onClick={handleSendInvoice} disabled={!canSend}>
                   <Send className="h-4 w-4 mr-2" />
                   Confirm Send
                 </Button>
@@ -388,7 +424,7 @@ export function InvoiceDetails() {
               <DialogHeader>
                 <DialogTitle>Record Payment</DialogTitle>
                 <DialogDescription>
-                  Add a new payment for this invoice. Balance remaining: ${balance.toFixed(2)}
+                  Add a new payment for this invoice. Balance remaining: {formatCurrency(balance)}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
