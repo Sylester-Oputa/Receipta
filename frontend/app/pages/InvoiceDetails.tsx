@@ -367,7 +367,7 @@ export function InvoiceDetails() {
                 <CopyField label="View Link (Read Only)" value={viewUrl} />
                 <CopyField label="Sign Link (Client Acknowledgement)" value={signUrl} />
                 <div className="bg-muted border border-border rounded-md p-4 text-sm">
-                  <strong>Note:</strong> After sending, you won't be able to edit this invoice. Use "Revise" to create a new version if changes are needed.
+                  <strong>Note:</strong> After sending, you won&apos;t be able to edit this invoice. Use &quot;Revise&quot; to create a new version if changes are needed.
                 </div>
               </div>
               <DialogFooter>

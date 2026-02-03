@@ -11,3 +11,4 @@ build/
 *.swp
 *.swo
 receipts/*.pdf
+backend/storage/

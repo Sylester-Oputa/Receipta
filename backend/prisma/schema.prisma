@@ -1,5 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Prisma schema for Receipta
 
 generator client {
   provider = "prisma-client-js"
@@ -10,16 +9,235 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Receipt {
-  id          String   @id @default(uuid())
-  title       String
-  amount      Float
-  date        DateTime
-  category    String
-  description String?
-  imageUrl    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+enum UserRole {
+  OWNER
+}
 
-  @@map("receipts")
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  SIGNED
+  PART_PAID
+  PAID
+  VOIDED
+}
+
+enum InvoiceLinkType {
+  VIEW
+  SIGN
+}
+
+enum SequenceKey {
+  INVOICE
+  RECEIPT
+}
+
+model Business {
+  id                    String            @id @default(uuid())
+  name                  String
+  businessCode          String            @unique
+  address               String?
+  phone                 String?
+  email                 String?
+  logoUrl               String?
+  bankDetailsJson       Json?
+  brandingPrimaryColor  String
+  allowOverpay          Boolean           @default(false)
+  createdAt             DateTime          @default(now())
+
+  users                 User[]
+  clients               Client[]
+  invoices              Invoice[]
+  invoiceItems          InvoiceItem[]
+  invoiceLinks          InvoiceLink[]
+  invoiceSignatures     InvoiceSignature[]
+  payments              Payment[]
+  receipts              Receipt[]
+  auditEvents           AuditEvent[]
+  sequences             Sequence[]
+}
+
+model User {
+  id           String    @id @default(uuid())
+  businessId   String
+  email        String
+  passwordHash String
+  role         UserRole
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  business     Business  @relation(fields: [businessId], references: [id])
+  auditEvents  AuditEvent[] @relation("ActorAuditEvents")
+
+  @@unique([businessId, email])
+  @@index([businessId])
+}
+
+model Client {
+  id          String    @id @default(uuid())
+  businessId  String
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  address     String?
+  archivedAt  DateTime?
+
+  business    Business  @relation(fields: [businessId], references: [id])
+  invoices    Invoice[]
+
+  @@index([businessId])
+}
+
+model Invoice {
+  id                String        @id @default(uuid())
+  businessId        String
+  clientId          String
+  originalInvoiceId String?
+  invoiceNo         String
+  version           Int           @default(1)
+  status            InvoiceStatus
+  issueDate         DateTime
+  dueDate           DateTime?
+  currency          String
+  notes             String?
+  taxRate           Decimal       @db.Decimal(5, 2)
+  subtotal          Decimal       @db.Decimal(12, 2)
+  taxTotal          Decimal       @db.Decimal(12, 2)
+  total             Decimal       @db.Decimal(12, 2)
+  brandColor        String
+  sentAt            DateTime?
+  signedAt          DateTime?
+  lockedAt          DateTime?
+  voidedAt          DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  business          Business      @relation(fields: [businessId], references: [id])
+  client            Client        @relation(fields: [clientId], references: [id])
+  items             InvoiceItem[]
+  links             InvoiceLink[]
+  signature         InvoiceSignature?
+  payments          Payment[]
+  receipts          Receipt[]
+  originalInvoice   Invoice?      @relation("InvoiceRevision", fields: [originalInvoiceId], references: [id])
+  revisions         Invoice[]     @relation("InvoiceRevision")
+
+  @@unique([businessId, invoiceNo])
+  @@index([businessId, clientId])
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  businessId  String
+  invoiceId   String
+  description String
+  qty         Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  lineTotal   Decimal  @db.Decimal(12, 2)
+  position    Int
+
+  business    Business @relation(fields: [businessId], references: [id])
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+}
+
+model InvoiceLink {
+  id        String          @id @default(uuid())
+  businessId String
+  invoiceId String
+  type      InvoiceLinkType
+  tokenHash String          @unique
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime        @default(now())
+
+  business  Business        @relation(fields: [businessId], references: [id])
+  invoice   Invoice         @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId, type])
+}
+
+model InvoiceSignature {
+  id                String   @id @default(uuid())
+  businessId         String
+  invoiceId         String   @unique
+  signerName        String
+  signerEmail       String
+  signatureFilePath String
+  signedAt          DateTime
+  ipAddress         String
+  userAgent         String
+  documentHash      String
+  signedPdfPath     String
+
+  business          Business @relation(fields: [businessId], references: [id])
+  invoice           Invoice  @relation(fields: [invoiceId], references: [id])
+}
+
+model Payment {
+  id         String   @id @default(uuid())
+  businessId String
+  invoiceId  String
+  amount     Decimal  @db.Decimal(12, 2)
+  method     String
+  paidAt     DateTime
+  note       String?
+  isReversal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  business   Business @relation(fields: [businessId], references: [id])
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  receipt    Receipt?
+
+  @@index([invoiceId])
+}
+
+model Receipt {
+  id           String   @id @default(uuid())
+  businessId   String
+  invoiceId    String
+  paymentId    String   @unique
+  receiptNo    String
+  amount       Decimal  @db.Decimal(12, 2)
+  balanceAfter Decimal  @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+
+  business     Business @relation(fields: [businessId], references: [id])
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id])
+  payment      Payment  @relation(fields: [paymentId], references: [id])
+
+  @@unique([businessId, receiptNo])
+  @@index([invoiceId])
+}
+
+model AuditEvent {
+  id          String   @id @default(uuid())
+  businessId  String
+  actorUserId String?
+  entityType  String
+  entityId    String
+  type        String
+  metaJson    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  business    Business @relation(fields: [businessId], references: [id])
+  actorUser   User?    @relation("ActorAuditEvents", fields: [actorUserId], references: [id])
+
+  @@index([businessId, entityType, entityId])
+}
+
+model Sequence {
+  id         String      @id @default(uuid())
+  businessId String
+  key        SequenceKey
+  year       Int
+  lastNumber Int
+
+  business   Business    @relation(fields: [businessId], references: [id])
+
+  @@unique([businessId, key, year])
 }

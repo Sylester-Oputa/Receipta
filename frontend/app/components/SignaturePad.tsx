@@ -40,7 +40,7 @@ export function SignaturePad({ onSave, disabled = false }: SignaturePadProps) {
 
   return (
     <div className="space-y-2">
-      <div className="relative border-2 border-dashed border-border rounded-md overflow-hidden bg-card">
+      <div className={`relative border-2 border-dashed border-border rounded-md overflow-hidden bg-card ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
         <SignatureCanvas
           ref={sigPadRef}
           canvasProps={{
@@ -48,7 +48,6 @@ export function SignaturePad({ onSave, disabled = false }: SignaturePadProps) {
             style: { touchAction: 'none' }
           }}
           onEnd={handleEnd}
-          disabled={disabled}
         />
         {sigPadRef.current?.isEmpty() && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-muted-foreground text-sm">
