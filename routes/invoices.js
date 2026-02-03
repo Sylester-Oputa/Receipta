@@ -2,9 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Invoice = require('../models/Invoice');
 const emailService = require('../services/emailService');
-
-// In-memory storage (in production, use a database)
-const invoices = new Map();
+const { invoices } = require('../data/storage');
 
 // Create a new invoice
 router.post('/', async (req, res) => {

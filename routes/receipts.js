@@ -2,12 +2,7 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
-
-// Get invoices from the invoice routes module
-let invoices;
-setTimeout(() => {
-  invoices = require('./invoices').invoices;
-}, 0);
+const { invoices } = require('../data/storage');
 
 // Get all receipts
 router.get('/', (req, res) => {

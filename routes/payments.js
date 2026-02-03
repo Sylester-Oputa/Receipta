@@ -4,15 +4,7 @@ const Payment = require('../models/Payment');
 const Receipt = require('../models/Receipt');
 const receiptService = require('../services/receiptService');
 const emailService = require('../services/emailService');
-
-// Get invoices from the invoice routes module
-let invoices;
-setTimeout(() => {
-  invoices = require('./invoices').invoices;
-}, 0);
-
-// In-memory storage
-const payments = new Map();
+const { invoices, payments } = require('../data/storage');
 
 // Record a new payment
 router.post('/', async (req, res) => {
