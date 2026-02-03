@@ -5,9 +5,11 @@ import { StatusBadge } from "@/app/components/StatusBadge";
 import { Button } from "@/app/components/ui/button";
 import { ArrowLeft, Download } from "lucide-react";
 import { motion } from "motion/react";
-import { API_URL } from "@/lib/api";
+import { invoiceApi } from "@/lib/api";
 import { formatCurrency } from "@/app/utils/format";
 import { getServiceLabels } from "@/app/utils/invoice";
+import { openPdfBlob } from "@/app/utils/download";
+import { toast } from "sonner";
 
 export function InvoicePreview() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +39,21 @@ export function InvoicePreview() {
   const qtyLabel = invoice.invoiceType === 'SERVICE' ? serviceLabels.qtyLabel : 'Qty';
   const unitLabel = invoice.invoiceType === 'SERVICE' ? serviceLabels.unitLabel : 'Unit Price';
 
+  const handleDownloadPdf = async () => {
+    const popup = window.open("", "_blank");
+    try {
+      const response = await invoiceApi.getPdf(invoice.id, !!invoice.signature);
+      openPdfBlob(response.data, popup);
+    } catch (error: any) {
+      if (popup && !popup.closed) {
+        popup.close();
+      }
+      toast.error(
+        error.response?.data?.error?.message || "Unable to download invoice PDF",
+      );
+    }
+  };
+
   return (
     <AppShell>
       <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
@@ -56,14 +73,7 @@ export function InvoicePreview() {
             </Button>
             <Button
               variant="outline"
-              onClick={() =>
-                window.open(
-                  `${API_URL}/v1/invoices/${invoice.id}/pdf${
-                    invoice.signature ? "?signed=true" : ""
-                  }`,
-                  "_blank",
-                )
-              }
+              onClick={handleDownloadPdf}
             >
               <Download className="h-4 w-4 mr-2" />
               Download PDF

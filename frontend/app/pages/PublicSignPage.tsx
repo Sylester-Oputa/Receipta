@@ -9,8 +9,9 @@ import { Checkbox } from '@/app/components/ui/checkbox';
 import { CheckCircle2, Download, FileSignature } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
-import { API_URL, publicApi } from '@/lib/api';
+import { publicApi } from '@/lib/api';
 import { formatCurrency } from '@/app/utils/format';
+import { openPdfBlob } from '@/app/utils/download';
 
 type PublicInvoiceResponse = {
   id: string;
@@ -132,11 +133,19 @@ export function PublicSignPage() {
     }
   };
 
-  const handleDownloadSigned = () => {
-    window.open(
-      `${API_URL}/v1/public/invoices/pdf/${token}?signed=true`,
-      '_blank',
-    );
+  const handleDownloadSigned = async () => {
+    const popup = window.open('', '_blank');
+    try {
+      const response = await publicApi.getInvoicePdf(token, true);
+      openPdfBlob(response.data, popup);
+    } catch (error: any) {
+      if (popup && !popup.closed) {
+        popup.close();
+      }
+      toast.error(
+        error.response?.data?.error?.message || 'Unable to download signed PDF',
+      );
+    }
   };
 
   if (alreadySigned && invoice.signature) {

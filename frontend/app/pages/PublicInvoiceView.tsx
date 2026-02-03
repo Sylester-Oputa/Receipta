@@ -6,9 +6,10 @@ import { Button } from '@/app/components/ui/button';
 import { Download, FileSignature } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
-import { API_URL, publicApi } from '@/lib/api';
+import { publicApi } from '@/lib/api';
 import { formatCurrency } from '@/app/utils/format';
 import { getServiceLabels } from '@/app/utils/invoice';
+import { openPdfBlob } from '@/app/utils/download';
 
 type PublicInvoiceResponse = {
   id: string;
@@ -121,16 +122,23 @@ export function PublicInvoiceView() {
   const unitLabel = invoice.invoiceType === 'SERVICE' ? serviceLabels.unitLabel : 'Unit Price';
   const downloadDisabled = canSign && !isSigned;
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (downloadDisabled) {
       toast.error('Download will be available after the invoice is signed.');
       return;
     }
-    const signedParam = isSigned ? '?signed=true' : '';
-    window.open(
-      `${API_URL}/v1/public/invoices/pdf/${token}${signedParam}`,
-      '_blank',
-    );
+    const popup = window.open('', '_blank');
+    try {
+      const response = await publicApi.getInvoicePdf(token, isSigned);
+      openPdfBlob(response.data, popup);
+    } catch (error: any) {
+      if (popup && !popup.closed) {
+        popup.close();
+      }
+      toast.error(
+        error.response?.data?.error?.message || 'Unable to download invoice PDF',
+      );
+    }
   };
 
   return (

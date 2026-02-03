@@ -30,7 +30,15 @@ export const getReceiptPdf = async (req: Request, res: Response, next: NextFunct
 
     const receipt = await prisma.receipt.findFirst({
       where: { id: req.params.id, businessId },
-      include: { invoice: true, business: true }
+      include: {
+        invoice: {
+          include: {
+            client: true
+          }
+        },
+        business: true,
+        payment: true
+      }
     });
 
     if (!receipt) {
@@ -40,7 +48,9 @@ export const getReceiptPdf = async (req: Request, res: Response, next: NextFunct
     const buffer = await renderReceiptPdf({
       business: receipt.business,
       invoice: receipt.invoice,
-      receipt
+      receipt,
+      client: receipt.invoice?.client ?? null,
+      payment: receipt.payment ?? null
     });
 
     res.setHeader("Content-Type", "application/pdf");

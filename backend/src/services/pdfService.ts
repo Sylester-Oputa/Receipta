@@ -5,8 +5,12 @@ import {
   Business,
   Client,
   Receipt,
+  Payment,
 } from "@prisma/client";
 import fs from "fs";
+import http from "http";
+import https from "https";
+import { PassThrough } from "stream";
 
 const formatMoney = (value: unknown) => {
   if (
@@ -54,6 +58,47 @@ const bufferFromDoc = (
     doc.on("error", reject);
     doc.end();
   });
+
+const fetchImageBuffer = async (url?: string | null): Promise<Buffer | null> => {
+  if (!url) return null;
+
+  if (url.startsWith("data:")) {
+    const base64 = url.split(",")[1];
+    if (!base64) return null;
+    try {
+      return Buffer.from(base64, "base64");
+    } catch {
+      return null;
+    }
+  }
+
+  if (!/^https?:\/\//i.test(url)) {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    const client = url.startsWith("https://") ? https : http;
+    const request = client.get(url, (response) => {
+      if (!response.statusCode || response.statusCode >= 400) {
+        response.resume();
+        resolve(null);
+        return;
+      }
+
+      const chunks: Buffer[] = [];
+      response.on("data", (chunk) =>
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)),
+      );
+      response.on("end", () => resolve(Buffer.concat(chunks)));
+    });
+
+    request.on("error", () => resolve(null));
+    request.setTimeout(4000, () => {
+      request.destroy();
+      resolve(null);
+    });
+  });
+};
 
 export const renderInvoicePdf = async (data: {
   business: Business;
@@ -156,28 +201,174 @@ export const renderReceiptPdf = async (data: {
   business: Business;
   invoice: Invoice;
   receipt: Receipt;
+  payment?: Payment | null;
+  client?: Client | null;
 }): Promise<Buffer> => {
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
+  const logoBuffer = await fetchImageBuffer(data.business.logoUrl);
+  const brandColor = data.business.brandingPrimaryColor;
+  const safeBrandColor =
+    typeof brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(brandColor)
+      ? brandColor
+      : "#111111";
 
-  doc.fontSize(18).text(data.business.name, { align: "left" });
-  doc.moveDown();
-  doc
-    .fontSize(16)
-    .text(`Receipt ${data.receipt.receiptNo}`, { align: "right" });
-  doc
-    .fontSize(10)
-    .text(`Invoice: ${data.invoice.invoiceNo}`, { align: "right" });
+  const drawReceipt = (doc: InstanceType<typeof PDFDocument>) => {
+    const contentWidth =
+      doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    doc.font("Courier");
+    doc.lineGap(-0.6);
+    const charWidth = doc.widthOfString("0");
+    const charsPerLine = Math.max(24, Math.floor(contentWidth / charWidth));
+    const labelWidth = 11;
 
-  doc.moveDown();
-  doc
-    .fontSize(12)
-    .text(
-      `Amount: ${formatMoney(data.receipt.amount)} ${data.invoice.currency}`,
-    );
-  doc.text(
-    `Balance After: ${formatMoney(data.receipt.balanceAfter)} ${data.invoice.currency}`,
-  );
-  doc.text(`Issued: ${data.receipt.createdAt.toISOString()}`);
+    const divider = (char = "-") => {
+      doc.text(char.repeat(charsPerLine), { align: "center" });
+    };
 
+    const wrapText = (value: string, width: number) => {
+      const words = value.split(/\s+/);
+      const lines: string[] = [];
+      let line = "";
+      words.forEach((word) => {
+        if (!line) {
+          line = word;
+          return;
+        }
+        if (`${line} ${word}`.length <= width) {
+          line = `${line} ${word}`;
+        } else {
+          lines.push(line);
+          line = word;
+        }
+      });
+      if (line) lines.push(line);
+      return lines.length ? lines : [value];
+    };
+
+    const writeKV = (label: string, value: string, alignRight = false) => {
+      const valueWidth = Math.max(8, charsPerLine - labelWidth);
+      const lines = wrapText(value, valueWidth);
+      lines.forEach((line, index) => {
+        if (index === 0) {
+          if (alignRight) {
+            const spaces = Math.max(1, valueWidth - line.length);
+            doc.text(`${label.padEnd(labelWidth)}${" ".repeat(spaces)}${line}`);
+          } else {
+            doc.text(`${label.padEnd(labelWidth)}${line}`);
+          }
+        } else {
+          doc.text(`${" ".repeat(labelWidth)}${line}`);
+        }
+      });
+    };
+
+    const formatCurrency = (value: unknown) =>
+      `${data.invoice.currency} ${formatMoney(value)}`;
+
+    const formatDateTime = (date: Date) =>
+      date.toISOString().replace("T", " ").split(".")[0];
+
+    if (logoBuffer) {
+      try {
+        const image = (doc as unknown as {
+          openImage: (input: Buffer) => { width: number; height: number };
+        }).openImage(logoBuffer);
+        const maxWidth = Math.min(120, contentWidth);
+        const maxHeight = 40;
+        const scale = Math.min(
+          maxWidth / image.width,
+          maxHeight / image.height,
+          1,
+        );
+        const width = image.width * scale;
+        const height = image.height * scale;
+        const x = doc.page.margins.left + (contentWidth - width) / 2;
+        const y = doc.y;
+        doc.image(image, x, y, { width, height });
+        doc.y = y + height + 4;
+      } catch {
+        // Ignore logo render failures
+      }
+    }
+
+    doc
+      .font("Courier-Bold")
+      .fontSize(11)
+      .text(data.business.name.toUpperCase(), { align: "center" });
+    doc.font("Courier").fontSize(8.5);
+    if (data.business.address) {
+      doc.text(data.business.address, { align: "center", width: contentWidth });
+    }
+    if (data.business.phone) {
+      doc.text(data.business.phone, { align: "center" });
+    }
+    if (data.business.email) {
+      doc.text(data.business.email, { align: "center" });
+    }
+
+    const barHeight = 8;
+    doc.save();
+    doc
+      .fillColor(safeBrandColor)
+      .rect(doc.page.margins.left, doc.y, contentWidth, barHeight)
+      .fill();
+    doc.restore();
+    doc.y += barHeight + 2;
+
+    divider("=");
+    doc
+      .font("Courier-Bold")
+      .fontSize(9.5)
+      .fillColor(safeBrandColor)
+      .text("RECEIPT", { align: "center" })
+      .fillColor("#000000");
+    divider("=");
+
+    doc.font("Courier").fontSize(8.5);
+    writeKV("Receipt#", data.receipt.receiptNo);
+    writeKV("Date", formatDateTime(data.receipt.createdAt));
+    writeKV("Invoice#", data.invoice.invoiceNo);
+
+    if (data.client?.name) {
+      writeKV("Client", data.client.name);
+    }
+
+    divider();
+
+    writeKV("Amount", formatCurrency(data.receipt.amount), true);
+    writeKV("Balance", formatCurrency(data.receipt.balanceAfter), true);
+    writeKV("Total", formatCurrency(data.invoice.total), true);
+
+    if (data.payment?.method) {
+      writeKV("Method", String(data.payment.method), true);
+    }
+
+    if (data.payment?.note) {
+      doc.moveDown(0.1);
+      doc.text("Note:");
+      doc.text(data.payment.note);
+    }
+
+    divider();
+    doc.text("Thank you for your business.", { align: "center" });
+    doc.text("This receipt is powered by Receipta.", { align: "center" });
+
+    return doc.y;
+  };
+
+  const measureDoc = new PDFDocument({
+    size: [226, 2000],
+    margin: 10,
+  });
+  measureDoc.pipe(new PassThrough());
+  const measuredY = drawReceipt(measureDoc);
+  const padding = Math.ceil(measureDoc.currentLineHeight(true)) + 4;
+  measureDoc.end();
+
+  const finalHeight = Math.max(measuredY + padding, 120);
+  const doc = new PDFDocument({
+    size: [226, finalHeight],
+    margin: 10,
+  });
+  drawReceipt(doc);
   return bufferFromDoc(doc);
 };

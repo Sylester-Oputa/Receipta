@@ -14,9 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, Eye, Send, Edit, FileX, Copy, Plus, Download, Clock, CheckCircle2, DollarSign, Lock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
-import { API_URL } from '@/lib/api';
+import { receiptApi } from '@/lib/api';
 import { formatCurrency } from '@/app/utils/format';
 import { getServiceLabels } from '@/app/utils/invoice';
+import { openPdfBlob } from '@/app/utils/download';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -156,12 +157,23 @@ export function InvoiceDetails() {
     sendLinks?.sign ||
     (invoice.signToken ? `${window.location.origin}/i/${invoice.signToken}/sign` : '');
 
-  const handleDownloadReceipt = (receiptId?: string) => {
+  const handleDownloadReceipt = async (receiptId?: string) => {
     if (!receiptId) {
       toast.error('Receipt not available');
       return;
     }
-    window.open(`${API_URL}/v1/receipts/${receiptId}/pdf`, '_blank');
+    const popup = window.open('', '_blank');
+    try {
+      const response = await receiptApi.getPdf(receiptId);
+      openPdfBlob(response.data, popup);
+    } catch (error: any) {
+      if (popup && !popup.closed) {
+        popup.close();
+      }
+      toast.error(
+        error.response?.data?.error?.message || 'Unable to download receipt',
+      );
+    }
   };
 
   return (

@@ -47,7 +47,10 @@ export const invoiceApi = {
   void: (id: string) => apiClient.post(`/v1/invoices/${id}/void`),
   revise: (id: string) => apiClient.post(`/v1/invoices/${id}/revise`),
   getPdf: (id: string, signed?: boolean) =>
-    apiClient.get(`/v1/invoices/${id}/pdf`, { params: { signed } }),
+    apiClient.get(`/v1/invoices/${id}/pdf`, {
+      params: { signed },
+      responseType: "blob",
+    }),
 };
 
 // Client API
@@ -101,7 +104,8 @@ export const authApi = {
 };
 
 export const receiptApi = {
-  getPdf: (id: string) => apiClient.get(`/v1/receipts/${id}/pdf`),
+  getPdf: (id: string) =>
+    apiClient.get(`/v1/receipts/${id}/pdf`, { responseType: "blob" }),
 };
 
 export const publicApi = {
@@ -110,7 +114,10 @@ export const publicApi = {
   viewInvoiceForSign: (token: string) =>
     apiClient.get(`/v1/public/invoices/sign/${token}`),
   getInvoicePdf: (token: string, signed?: boolean) =>
-    apiClient.get(`/v1/public/invoices/pdf/${token}`, { params: { signed } }),
+    apiClient.get(`/v1/public/invoices/pdf/${token}`, {
+      params: { signed },
+      responseType: "blob",
+    }),
   signInvoice: (token: string, data: any) =>
     apiClient.post(`/v1/public/invoices/sign/${token}`, data),
 };
