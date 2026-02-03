@@ -1,153 +1,261 @@
 # Receipta
 
-A full-stack receipt management application built with Next.js, Tailwind CSS, Express.js, PostgreSQL, and Prisma ORM.
+**Invoice and Payment Workflow Platform**
+
+Receipta is a comprehensive invoice and payment workflow platform that enables you to:
+- 📝 **Send Invoices** - Create and send professional invoices to clients
+- ✅ **Collect Client Acknowledgements** - Track when clients acknowledge receipt of invoices
+- 💰 **Track Payments** - Record and monitor payments against invoices
+- 🧾 **Generate Official Receipts** - Automatically generate PDF receipts for payments
+
+All in one integrated system!
+
+## Features
+
+### Invoice Management
+- Create detailed invoices with multiple line items
+- Automatic calculation of subtotals, taxes, and totals
+- Send invoices to clients via email
+- Track invoice status (draft, sent, acknowledged, paid)
+- View invoice history and details
+
+### Client Acknowledgement System
+- Email notifications with acknowledgement links
+- Track when clients acknowledge receipt
+- Automatic status updates
+
+### Payment Tracking
+- Record payments against invoices
+- Support multiple payment methods (cash, credit card, bank transfer, check)
+- Track payment history
+- Calculate outstanding balances
+- Prevent overpayment
+
+### Receipt Generation
+- Automatically generate official PDF receipts
+- Professional receipt formatting with all transaction details
+- Download receipts at any time
+- Email receipts to clients
+
+### Dashboard
+- Real-time statistics
+- Recent activity overview
+- Quick access to all features
+
+## Installation
+
+### Prerequisites
+- Node.js (v14 or higher)
+- npm (v6 or higher)
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/Sylester-Oputa/Receipta.git
+cd Receipta
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Start the server:
+```bash
+npm start
+```
+
+The application will be available at `http://localhost:3000`
+
+For development with auto-reload:
+```bash
+npm run dev
+```
+
+## Usage
+
+### Creating an Invoice
+
+1. Navigate to the **Invoices** tab
+2. Fill in the client details (name and email)
+3. Set the due date
+4. Add invoice items with descriptions, quantities, and prices
+5. Add any additional notes (optional)
+6. Click **Create Invoice**
+
+### Sending an Invoice
+
+1. Find the invoice in the invoice list
+2. Click **Send Invoice**
+3. The invoice will be emailed to the client with an acknowledgement link
+
+### Recording a Payment
+
+1. Navigate to the **Payments** tab
+2. Select the invoice from the dropdown
+3. Enter the payment amount
+4. Select the payment method
+5. Add notes (optional)
+6. Click **Record Payment**
+
+### Generating a Receipt
+
+1. Navigate to the **Payments** tab
+2. Find the payment in the list
+3. Click **Generate Receipt**
+4. A PDF receipt will be created and emailed to the client
+5. Download the receipt from the **Receipts** tab
+
+## API Documentation
+
+### Invoices
+
+#### Create Invoice
+```
+POST /api/invoices
+Content-Type: application/json
+
+{
+  "clientName": "John Doe",
+  "clientEmail": "john@example.com",
+  "items": [
+    {
+      "description": "Web Development",
+      "quantity": 10,
+      "unitPrice": 100.00
+    }
+  ],
+  "dueDate": "2026-03-01",
+  "notes": "Thank you for your business"
+}
+```
+
+#### Get All Invoices
+```
+GET /api/invoices
+```
+
+#### Get Single Invoice
+```
+GET /api/invoices/:id
+```
+
+#### Send Invoice
+```
+POST /api/invoices/:id/send
+```
+
+#### Acknowledge Invoice
+```
+POST /api/invoices/:id/acknowledge
+```
+
+### Payments
+
+#### Record Payment
+```
+POST /api/payments
+Content-Type: application/json
+
+{
+  "invoiceId": "invoice-id",
+  "amount": 550.00,
+  "paymentMethod": "credit_card",
+  "notes": "Paid via credit card"
+}
+```
+
+#### Get All Payments
+```
+GET /api/payments
+```
+
+#### Get Payments for Invoice
+```
+GET /api/payments/invoice/:invoiceId
+```
+
+#### Generate Receipt
+```
+POST /api/payments/:id/generate-receipt
+```
+
+### Receipts
+
+#### Get All Receipts
+```
+GET /api/receipts
+```
+
+#### Get Receipts for Invoice
+```
+GET /api/receipts/invoice/:invoiceId
+```
+
+#### Download Receipt PDF
+```
+GET /api/receipts/:receiptNumber/download
+```
 
 ## Project Structure
 
 ```
 Receipta/
-├── frontend/          # Next.js frontend with Tailwind CSS
-│   ├── components/    # React components
-│   ├── pages/        # Next.js pages
-│   ├── styles/       # CSS styles
-│   └── public/       # Static assets
-└── backend/          # Express.js backend
-    ├── src/          # Source code
-    │   ├── routes/   # API routes
-    │   ├── controllers/  # Route controllers
-    │   └── index.js  # Server entry point
-    └── prisma/       # Prisma schema and migrations
+├── models/
+│   ├── Invoice.js      # Invoice data model
+│   ├── Payment.js      # Payment data model
+│   └── Receipt.js      # Receipt data model
+├── routes/
+│   ├── invoices.js     # Invoice API endpoints
+│   ├── payments.js     # Payment API endpoints
+│   └── receipts.js     # Receipt API endpoints
+├── services/
+│   ├── emailService.js # Email handling service
+│   └── receiptService.js # PDF receipt generation
+├── public/
+│   ├── index.html      # Frontend interface
+│   └── app.js          # Frontend JavaScript
+├── receipts/           # Generated PDF receipts
+├── server.js           # Express server
+└── package.json        # Dependencies
 ```
 
-## Tech Stack
+## Technology Stack
 
-### Frontend
-- **Next.js** - React framework for production
-- **React** - UI library
-- **Tailwind CSS** - Utility-first CSS framework
-
-### Backend
-- **Node.js** - JavaScript runtime
-- **Express.js** - Web application framework
-- **PostgreSQL** - Relational database
-- **Prisma** - Modern ORM for Node.js
-
-## Quick Start
-
-### Prerequisites
-- Node.js (v18 or higher)
-- PostgreSQL database
-
-### Backend Setup
-
-1. Navigate to the backend directory:
-```bash
-cd backend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Set up environment variables:
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your database credentials:
-```
-DATABASE_URL="postgresql://user:password@localhost:5432/receipta_db?schema=public"
-PORT=5000
-```
-
-4. Run Prisma migrations:
-```bash
-npm run prisma:migrate
-```
-
-5. Generate Prisma Client:
-```bash
-npm run prisma:generate
-```
-
-6. Start the backend server:
-```bash
-npm run dev
-```
-
-The backend API will be available at `http://localhost:5000`.
-
-### Frontend Setup
-
-1. Navigate to the frontend directory:
-```bash
-cd frontend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Set up environment variables:
-```bash
-cp .env.local.example .env.local
-```
-
-Edit `.env.local`:
-```
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
-```
-
-4. Start the development server:
-```bash
-npm run dev
-```
-
-The frontend will be available at `http://localhost:3000`.
-
-## Features
-
-- ✅ Create, read, update, and delete receipts
-- ✅ Categorize receipts
-- ✅ Add descriptions and images to receipts
-- ✅ Responsive design for mobile and desktop
-- ✅ RESTful API architecture
-- ✅ PostgreSQL database with Prisma ORM
-
-## API Endpoints
-
-### Receipts
-- `GET /api/receipts` - Get all receipts
-- `GET /api/receipts/:id` - Get a single receipt
-- `POST /api/receipts` - Create a new receipt
-- `PUT /api/receipts/:id` - Update a receipt
-- `DELETE /api/receipts/:id` - Delete a receipt
-
-### Health Check
-- `GET /api/health` - Check API status
+- **Backend**: Node.js, Express
+- **Email**: Nodemailer
+- **PDF Generation**: PDFKit
+- **Frontend**: Vanilla JavaScript, HTML5, CSS3
+- **Storage**: In-memory (can be upgraded to database)
 
 ## Development
 
-### Backend Development
+### Running Tests
 ```bash
-cd backend
-npm run dev  # Start with nodemon for auto-reload
+npm test
 ```
 
-### Frontend Development
-```bash
-cd frontend
-npm run dev  # Start Next.js dev server
-```
+### Project Configuration
 
-### Database Management
-```bash
-cd backend
-npm run prisma:studio  # Open Prisma Studio to view/manage data
-```
+The application uses in-memory storage by default. For production use, you should:
+1. Replace in-memory storage with a database (MongoDB, PostgreSQL, etc.)
+2. Configure email service with real SMTP credentials
+3. Add authentication and authorization
+4. Implement data persistence
+5. Add security measures (rate limiting, input validation, etc.)
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
 ## License
 
-MIT
+MIT License - see LICENSE file for details
+
+## Support
+
+For issues and questions, please open an issue on GitHub.
