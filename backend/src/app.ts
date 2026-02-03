@@ -8,6 +8,7 @@ import { logger } from "./config/logger";
 import { swaggerSpec } from "./config/swagger";
 import { errorHandler, notFound } from "./middleware/error";
 import { ensureStorageDirs } from "./utils/storage";
+import { requireSetupComplete } from "./middleware/requireSetupComplete";
 import authRoutes from "./routes/authRoutes";
 import businessRoutes from "./routes/businessRoutes";
 import clientRoutes from "./routes/clientRoutes";
@@ -15,6 +16,7 @@ import invoiceRoutes from "./routes/invoiceRoutes";
 import publicRoutes from "./routes/publicRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import receiptRoutes from "./routes/receiptRoutes";
+import setupRoutes from "./routes/setupRoutes";
 
 export const createApp = () => {
   const app = express();
@@ -34,6 +36,9 @@ export const createApp = () => {
   app.use(pinoHttp({ logger }));
 
   app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+  app.use(requireSetupComplete);
+  app.use("/api/v1/setup", setupRoutes);
 
   app.use("/api/v1/auth", authRoutes);
   app.use("/api/v1/business", businessRoutes);

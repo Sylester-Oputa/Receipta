@@ -13,7 +13,6 @@ export const changePasswordSchema = z.object({
 export const businessUpdateSchema = z
   .object({
     name: z.string().min(1).optional(),
-    businessCode: z.string().min(2).optional(),
     address: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email().optional(),
@@ -90,4 +89,23 @@ export const idParamSchema = z.object({
 
 export const tokenParamSchema = z.object({
   token: z.string().min(10)
+});
+
+export const setupOwnerSchema = z.object({
+  business: z.object({
+    name: z.string().min(2),
+    businessCode: z.string().regex(/^[A-Z0-9]{3,6}$/),
+    email: z.string().email().optional(),
+    phone: z.string().optional(),
+    address: z.string().optional()
+  }),
+  owner: z.object({
+    email: z.string().email(),
+    password: z.string().min(8)
+  }),
+  branding: z
+    .object({
+      primaryColor: z.string().regex(/^#([0-9a-fA-F]{6})$/).optional()
+    })
+    .optional()
 });

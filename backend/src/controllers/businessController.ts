@@ -30,7 +30,6 @@ export const updateBusiness = async (req: Request, res: Response, next: NextFunc
       where: { id: businessId },
       data: {
         name: data.name as string | undefined,
-        businessCode: data.businessCode as string | undefined,
         address: data.address as string | undefined,
         phone: data.phone as string | undefined,
         email: data.email as string | undefined,
