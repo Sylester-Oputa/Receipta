@@ -1,0 +1,231 @@
+import { useState } from 'react';
+import { useApp } from '@/app/contexts/AppContext';
+import { AppShell } from '@/app/components/AppShell';
+import { Button } from '@/app/components/ui/button';
+import { Input } from '@/app/components/ui/input';
+import { Label } from '@/app/components/ui/label';
+import { Textarea } from '@/app/components/ui/textarea';
+import { Save, Check } from 'lucide-react';
+import { motion } from 'motion/react';
+import { toast } from 'sonner';
+
+export function Settings() {
+  const { settings, updateSettings } = useApp();
+  const [formData, setFormData] = useState(settings);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
+    updateSettings(formData);
+    
+    setSaving(false);
+    toast.success('Settings saved successfully');
+  };
+
+  const getContrastColor = (hexColor: string): string => {
+    const hex = hexColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#000000' : '#ffffff';
+  };
+
+  const contrastColor = getContrastColor(formData.brandColor);
+
+  return (
+    <AppShell title="Settings">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.16, ease: 'easeOut' }}
+        >
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold">Settings</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage your business profile and branding
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Business Profile */}
+            <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+              <h3 className="font-semibold">Business Profile</h3>
+              
+              <div className="space-y-2">
+                <Label htmlFor="businessName">Business Name</Label>
+                <Input
+                  id="businessName"
+                  value={formData.businessName}
+                  onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Textarea
+                  id="address"
+                  rows={3}
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bank Details */}
+            <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+              <h3 className="font-semibold">Bank Details</h3>
+              
+              <div className="space-y-2">
+                <Label htmlFor="bankName">Bank Name</Label>
+                <Input
+                  id="bankName"
+                  value={formData.bankName}
+                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="accountName">Account Name</Label>
+                <Input
+                  id="accountName"
+                  value={formData.accountName}
+                  onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="accountNumber">Account Number</Label>
+                <Input
+                  id="accountNumber"
+                  value={formData.accountNumber}
+                  onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Branding */}
+            <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+              <h3 className="font-semibold">Branding</h3>
+              
+              <div className="space-y-2">
+                <Label htmlFor="brandColor">Brand Primary Color</Label>
+                <div className="flex gap-3">
+                  <div className="relative">
+                    <Input
+                      id="brandColor"
+                      type="color"
+                      value={formData.brandColor}
+                      onChange={(e) => setFormData({ ...formData, brandColor: e.target.value })}
+                      className="w-20 h-11 cursor-pointer"
+                    />
+                  </div>
+                  <Input
+                    type="text"
+                    value={formData.brandColor}
+                    onChange={(e) => setFormData({ ...formData, brandColor: e.target.value })}
+                    placeholder="#3b82f6"
+                    className="flex-1"
+                    pattern="^#[0-9A-Fa-f]{6}$"
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  This color will be used as an accent in invoice previews and PDFs
+                </p>
+              </div>
+
+              {/* Color Preview */}
+              <div className="space-y-3">
+                <Label>Preview</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="text-sm text-muted-foreground">Color Chip</div>
+                    <div 
+                      className="h-24 rounded-md border border-border flex items-center justify-center font-medium"
+                      style={{ backgroundColor: formData.brandColor, color: contrastColor }}
+                    >
+                      {formData.brandColor}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm text-muted-foreground">Contrast Safe Text</div>
+                    <div className="h-24 border border-border rounded-md p-4 flex flex-col justify-center">
+                      <div className="text-sm font-medium mb-1">Suggested text color:</div>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-6 h-6 rounded border border-border"
+                          style={{ backgroundColor: contrastColor }}
+                        />
+                        <span className="text-sm">{contrastColor}</span>
+                        <Check className="h-4 w-4 text-[var(--success)]" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Invoice Preview Sample */}
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">Invoice Header Preview</div>
+                <div className="border border-border rounded-md overflow-hidden">
+                  <div 
+                    className="h-2"
+                    style={{ backgroundColor: formData.brandColor }}
+                  />
+                  <div className="p-4 bg-card">
+                    <div className="text-sm font-medium mb-1">{formData.businessName}</div>
+                    <div className="text-xs text-muted-foreground">Invoice #INV-2026-0001</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <div className="flex justify-end">
+              <Button type="submit" disabled={saving}>
+                {saving ? (
+                  <>Saving...</>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Settings
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </motion.div>
+      </div>
+    </AppShell>
+  );
+}
