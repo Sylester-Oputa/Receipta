@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   authApi,
   invoiceApi,
@@ -8,6 +8,7 @@ import {
 } from "@/lib/api";
 import { toast } from "sonner";
 import { formatCurrency } from "@/app/utils/format";
+import { ServiceUnit } from "@/app/utils/invoice";
 
 export type InvoiceStatus =
   | "DRAFT"
@@ -58,6 +59,9 @@ export interface Invoice {
   id: string;
   invoiceNumber: string;
   clientId: string;
+  invoiceType: "PRODUCT" | "SERVICE";
+  servicePeriod?: string;
+  serviceUnit: ServiceUnit;
   issueDate: string;
   dueDate: string;
   status: InvoiceStatus;
@@ -130,6 +134,7 @@ interface AppContextType {
   sendInvoice: (id: string) => Promise<{ viewToken: string; signToken: string } | null>;
   voidInvoice: (id: string) => Promise<void>;
   reviseInvoice: (id: string) => Promise<string | null>;
+  refreshInvoice: (id: string) => Promise<void>;
 
   payments: Payment[];
   addPayment: (payment: Omit<Payment, "id" | "receiptNumber" | "balanceAfter" | "receiptId">) => Promise<void>;
@@ -188,6 +193,9 @@ const mapInvoice = (
   id: invoice.id,
   invoiceNumber: invoice.invoiceNo ?? invoice.invoiceNumber ?? "",
   clientId: invoice.clientId,
+  invoiceType: invoice.invoiceType ?? "PRODUCT",
+  servicePeriod: invoice.servicePeriod ?? undefined,
+  serviceUnit: (invoice.serviceUnit as ServiceUnit) ?? "UNITS",
   issueDate: invoice.issueDate,
   dueDate: invoice.dueDate ?? "",
   status: invoice.status,
@@ -452,6 +460,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const payload = {
         clientId: invoice.clientId,
+        invoiceType: invoice.invoiceType,
+        servicePeriod: invoice.servicePeriod || undefined,
+        serviceUnit: invoice.serviceUnit,
         issueDate: invoice.issueDate || undefined,
         dueDate: invoice.dueDate || undefined,
         currency: invoice.currency || "NGN",
@@ -487,6 +498,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateInvoice = async (id: string, updates: Partial<Invoice>) => {
     try {
       const payload = {
+        invoiceType: updates.invoiceType || undefined,
+        servicePeriod: updates.servicePeriod || undefined,
+        serviceUnit: updates.serviceUnit || undefined,
         issueDate: updates.issueDate || undefined,
         dueDate: updates.dueDate || undefined,
         currency: updates.currency || "NGN",
@@ -517,6 +531,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw error;
     }
   };
+
+  const refreshInvoice = useCallback(
+    async (id: string) => {
+      try {
+        const response = await invoiceApi.getById(id);
+        setInvoices((prev) => {
+          const existing = prev.find((inv) => inv.id === id);
+          const tokens = existing
+            ? { viewToken: existing.viewToken, signToken: existing.signToken }
+            : linkTokens[id];
+          const mapped = mapInvoice(response.data, tokens);
+          return prev.map((inv) => (inv.id === id ? mapped : inv));
+        });
+
+        if (response.data.client) {
+          const client = mapClient(response.data.client);
+          setClients((prev) => {
+            const exists = prev.some((c) => c.id === client.id);
+            if (exists) {
+              return prev.map((c) => (c.id === client.id ? client : c));
+            }
+            return [...prev, client];
+          });
+        }
+      } catch {
+        // Best-effort refresh; errors handled elsewhere
+      }
+    },
+    [linkTokens],
+  );
 
   const sendInvoice = async (id: string) => {
     try {
@@ -711,6 +755,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sendInvoice,
         voidInvoice,
         reviseInvoice,
+        refreshInvoice,
         payments,
         addPayment,
         timeline,

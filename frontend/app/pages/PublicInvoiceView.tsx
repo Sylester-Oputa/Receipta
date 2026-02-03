@@ -5,13 +5,18 @@ import { ThemeToggle } from '@/app/components/ThemeToggle';
 import { Button } from '@/app/components/ui/button';
 import { Download, FileSignature } from 'lucide-react';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 import { API_URL, publicApi } from '@/lib/api';
 import { formatCurrency } from '@/app/utils/format';
+import { getServiceLabels } from '@/app/utils/invoice';
 
 type PublicInvoiceResponse = {
   id: string;
   invoiceNo: string;
   status: string;
+  invoiceType: "PRODUCT" | "SERVICE";
+  servicePeriod?: string;
+  serviceUnit?: "HOURS" | "MONTHS" | "SESSIONS" | "UNITS";
   issueDate: string;
   dueDate?: string;
   currency: string;
@@ -111,8 +116,16 @@ export function PublicInvoiceView() {
   const brandColor = invoice.brandColor || '#0F172A';
   const isSigned = !!invoice.signature;
   const bankDetails = invoice.business.bankDetails ?? {};
+  const serviceLabels = getServiceLabels(invoice.serviceUnit);
+  const qtyLabel = invoice.invoiceType === 'SERVICE' ? serviceLabels.qtyLabel : 'Qty';
+  const unitLabel = invoice.invoiceType === 'SERVICE' ? serviceLabels.unitLabel : 'Unit Price';
+  const downloadDisabled = canSign && !isSigned;
 
   const handleDownloadPdf = () => {
+    if (downloadDisabled) {
+      toast.error('Download will be available after the invoice is signed.');
+      return;
+    }
     const signedParam = isSigned ? '?signed=true' : '';
     window.open(
       `${API_URL}/v1/public/invoices/pdf/${token}${signedParam}`,
@@ -183,6 +196,12 @@ export function PublicInvoiceView() {
                         <span className="font-medium">{new Date(invoice.dueDate).toLocaleDateString()}</span>
                       </div>
                     )}
+                    {invoice.invoiceType === 'SERVICE' && invoice.servicePeriod && (
+                      <div>
+                        <span className="text-muted-foreground">Service Period: </span>
+                        <span className="font-medium">{invoice.servicePeriod}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -196,8 +215,8 @@ export function PublicInvoiceView() {
                 <thead style={{ backgroundColor: brandColor, color: 'white' }}>
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium">Description</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium">Qty</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium">Unit Price</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium">{qtyLabel}</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium">{unitLabel}</th>
                     <th className="px-4 py-3 text-right text-sm font-medium">Total</th>
                   </tr>
                 </thead>
@@ -292,7 +311,12 @@ export function PublicInvoiceView() {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
-            <Button className="flex-1" variant="outline" onClick={handleDownloadPdf}>
+            <Button
+              className="flex-1"
+              variant="outline"
+              onClick={handleDownloadPdf}
+              disabled={downloadDisabled}
+            >
               <Download className="h-4 w-4 mr-2" />
               Download PDF
             </Button>

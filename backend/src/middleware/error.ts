@@ -9,6 +9,8 @@ export const notFound = (_req: Request, _res: Response, next: NextFunction) => {
 };
 
 export const errorHandler = (err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const isDev = process.env.NODE_ENV !== "production";
+
   if (err instanceof ZodError) {
     return res.status(400).json({
       error: {
@@ -39,12 +41,18 @@ export const errorHandler = (err: unknown, _req: Request, res: Response, _next: 
     });
   }
 
-  logger.error({ err }, "Unhandled error");
+  if (err instanceof Error) {
+    logger.error({ message: err.message, stack: err.stack }, "Unhandled error");
+  } else {
+    logger.error({ err }, "Unhandled error");
+  }
   return res.status(500).json({
     error: {
       message: "Internal server error",
       code: "INTERNAL_ERROR",
-      details: null
+      details: isDev && err instanceof Error
+        ? { message: err.message, stack: err.stack }
+        : null
     }
   });
 };

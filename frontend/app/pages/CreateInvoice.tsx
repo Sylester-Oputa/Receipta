@@ -11,6 +11,7 @@ import { ArrowLeft, Plus, Trash2, Save } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/app/utils/format';
+import { getServiceLabels, ServiceUnit } from '@/app/utils/invoice';
 
 export function CreateInvoice() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +22,13 @@ export function CreateInvoice() {
   const isEdit = !!existingInvoice;
 
   const [clientId, setClientId] = useState(existingInvoice?.clientId || '');
+  const [invoiceType, setInvoiceType] = useState<'PRODUCT' | 'SERVICE'>(
+    existingInvoice?.invoiceType || 'PRODUCT'
+  );
+  const [serviceUnit, setServiceUnit] = useState<ServiceUnit>(
+    existingInvoice?.serviceUnit || 'HOURS'
+  );
+  const [servicePeriod, setServicePeriod] = useState(existingInvoice?.servicePeriod || '');
   const [issueDate, setIssueDate] = useState(existingInvoice?.issueDate || new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState(existingInvoice?.dueDate || '');
   const [items, setItems] = useState<InvoiceItem[]>(
@@ -28,6 +36,10 @@ export function CreateInvoice() {
   );
   const [taxRate, setTaxRate] = useState(existingInvoice?.taxRate?.toString() || '10');
   const [notes, setNotes] = useState(existingInvoice?.notes || '');
+
+  const serviceLabels = getServiceLabels(serviceUnit);
+  const qtyLabel = invoiceType === 'SERVICE' ? serviceLabels.qtyLabel : 'Quantity';
+  const unitLabel = invoiceType === 'SERVICE' ? serviceLabels.unitLabel : 'Unit Price';
 
   const calculateItemTotal = (quantity: number, unitPrice: number) => {
     return quantity * unitPrice;
@@ -77,6 +89,9 @@ export function CreateInvoice() {
 
     const invoiceData = {
       clientId,
+      invoiceType,
+      servicePeriod: invoiceType === 'SERVICE' ? servicePeriod : undefined,
+      serviceUnit: invoiceType === 'SERVICE' ? serviceUnit : 'UNITS',
       issueDate,
       dueDate,
       status: 'DRAFT' as const,
@@ -132,6 +147,62 @@ export function CreateInvoice() {
               <h3 className="font-semibold">Invoice Details</h3>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="invoiceType">Invoice Type</Label>
+                  <Select
+                    value={invoiceType}
+                    onValueChange={(value: 'PRODUCT' | 'SERVICE') => {
+                      setInvoiceType(value);
+                      if (value === 'PRODUCT') {
+                        setServicePeriod('');
+                        setServiceUnit('UNITS');
+                      } else if (serviceUnit === 'UNITS') {
+                        setServiceUnit('HOURS');
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="invoiceType">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PRODUCT">Product</SelectItem>
+                      <SelectItem value="SERVICE">Service</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {invoiceType === 'SERVICE' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="serviceUnit">Service Unit</Label>
+                      <Select
+                        value={serviceUnit}
+                        onValueChange={(value: ServiceUnit) => setServiceUnit(value)}
+                      >
+                        <SelectTrigger id="serviceUnit">
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="HOURS">Hours</SelectItem>
+                          <SelectItem value="MONTHS">Months</SelectItem>
+                          <SelectItem value="SESSIONS">Sessions</SelectItem>
+                          <SelectItem value="UNITS">Units</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="servicePeriod">Service Period</Label>
+                      <Input
+                        id="servicePeriod"
+                        placeholder="e.g. Feb 9 – May 9, 2026"
+                        value={servicePeriod}
+                        onChange={(e) => setServicePeriod(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="client">Client *</Label>
                   <Select value={clientId} onValueChange={setClientId}>
@@ -207,7 +278,7 @@ export function CreateInvoice() {
                       
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         <div className="space-y-2">
-                          <Label>Quantity</Label>
+                          <Label>{qtyLabel}</Label>
                           <Input
                             type="number"
                             min="1"
@@ -217,7 +288,7 @@ export function CreateInvoice() {
                         </div>
                         
                         <div className="space-y-2">
-                          <Label>Unit Price</Label>
+                          <Label>{unitLabel}</Label>
                           <Input
                             type="number"
                             step="0.01"

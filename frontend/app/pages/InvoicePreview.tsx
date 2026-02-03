@@ -7,6 +7,7 @@ import { ArrowLeft, Download } from "lucide-react";
 import { motion } from "motion/react";
 import { API_URL } from "@/lib/api";
 import { formatCurrency } from "@/app/utils/format";
+import { getServiceLabels } from "@/app/utils/invoice";
 
 export function InvoicePreview() {
   const { id } = useParams<{ id: string }>();
@@ -32,6 +33,9 @@ export function InvoicePreview() {
   }
 
   const brandColor = settings.brandColor;
+  const serviceLabels = getServiceLabels(invoice.serviceUnit);
+  const qtyLabel = invoice.invoiceType === 'SERVICE' ? serviceLabels.qtyLabel : 'Qty';
+  const unitLabel = invoice.invoiceType === 'SERVICE' ? serviceLabels.unitLabel : 'Unit Price';
 
   return (
     <AppShell>
@@ -133,6 +137,12 @@ export function InvoicePreview() {
                         {new Date(invoice.dueDate).toLocaleDateString()}
                       </span>
                     </div>
+                    {invoice.invoiceType === 'SERVICE' && invoice.servicePeriod && (
+                      <div>
+                        <span className="text-gray-500">Service Period: </span>
+                        <span className="font-medium">{invoice.servicePeriod}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -146,10 +156,10 @@ export function InvoicePreview() {
                         Description
                       </th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-white">
-                        Qty
+                        {qtyLabel}
                       </th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-white">
-                        Unit Price
+                        {unitLabel}
                       </th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-white">
                         Total

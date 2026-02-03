@@ -21,6 +21,27 @@ const formatMoney = (value: unknown) => {
   return String(value ?? "0.00");
 };
 
+const getServiceLabels = (unit?: string) => {
+  const normalized = unit ?? "HOURS";
+  const unitLabels: Record<string, string> = {
+    HOURS: "Hours",
+    MONTHS: "Months",
+    SESSIONS: "Sessions",
+    UNITS: "Units"
+  };
+  const rateLabels: Record<string, string> = {
+    HOURS: "Hourly Rate",
+    MONTHS: "Monthly Rate",
+    SESSIONS: "Session Rate",
+    UNITS: "Rate"
+  };
+
+  return {
+    qtyLabel: unitLabels[normalized] ?? "Units",
+    unitLabel: rateLabels[normalized] ?? "Rate"
+  };
+};
+
 const bufferFromDoc = (
   doc: InstanceType<typeof PDFDocument>,
 ): Promise<Buffer> =>
@@ -45,6 +66,9 @@ export const renderInvoicePdf = async (data: {
   signedAt?: Date | null;
 }): Promise<Buffer> => {
   const doc = new PDFDocument({ size: "A4", margin: 50 });
+  const serviceLabels = getServiceLabels(data.invoice.serviceUnit ?? "HOURS");
+  const qtyLabel = data.invoice.invoiceType === "SERVICE" ? serviceLabels.qtyLabel : "Qty";
+  const unitLabel = data.invoice.invoiceType === "SERVICE" ? serviceLabels.unitLabel : "Unit Price";
 
   doc.fontSize(18).text(data.business.name, { align: "left" });
   doc.fontSize(10).text(data.business.address ?? "", { align: "left" });
@@ -60,6 +84,11 @@ export const renderInvoicePdf = async (data: {
   );
   if (data.invoice.dueDate) {
     doc.text(`Due Date: ${data.invoice.dueDate.toISOString().split("T")[0]}`, {
+      align: "right",
+    });
+  }
+  if (data.invoice.invoiceType === "SERVICE" && data.invoice.servicePeriod) {
+    doc.text(`Service Period: ${data.invoice.servicePeriod}`, {
       align: "right",
     });
   }
@@ -81,7 +110,7 @@ export const renderInvoicePdf = async (data: {
       doc
         .fontSize(10)
         .text(
-          `${item.description} | Qty: ${formatMoney(item.qty)} | Unit: ${formatMoney(
+          `${item.description} | ${qtyLabel}: ${formatMoney(item.qty)} | ${unitLabel}: ${formatMoney(
             item.unitPrice,
           )} | Line: ${formatMoney(item.lineTotal)}`,
         );

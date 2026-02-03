@@ -17,7 +17,7 @@ const getNextSequenceInternal = async (
 ): Promise<number> => {
   const existing = await tx.$queryRaw<{ id: string; lastNumber: number }[]>`
     SELECT "id", "lastNumber" FROM "Sequence"
-    WHERE "businessId" = ${businessId} AND "key" = ${key} AND "year" = ${year}
+    WHERE "businessId" = ${businessId} AND "key" = ${key}::"SequenceKey" AND "year" = ${year}
     FOR UPDATE
   `;
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '@/app/contexts/AppContext';
 import { AppShell } from '@/app/components/AppShell';
@@ -16,11 +16,22 @@ import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { API_URL } from '@/lib/api';
 import { formatCurrency } from '@/app/utils/format';
+import { getServiceLabels } from '@/app/utils/invoice';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/app/components/ui/alert-dialog';
 
 export function InvoiceDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { invoices, clients, payments, addPayment, sendInvoice, voidInvoice, reviseInvoice, getInvoiceTimeline, settings } = useApp();
+  const { invoices, clients, payments, addPayment, sendInvoice, voidInvoice, reviseInvoice, refreshInvoice, getInvoiceTimeline, settings } = useApp();
 
   const invoice = invoices.find(inv => inv.id === id);
   const client = invoice ? clients.find(c => c.id === invoice.clientId) : null;
@@ -28,11 +39,27 @@ export function InvoiceDetails() {
   const timeline = invoice ? getInvoiceTimeline(invoice.id) : [];
 
   const [showSendModal, setShowSendModal] = useState(false);
+  const [showSendConfirm, setShowSendConfirm] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER' | 'POS'>('TRANSFER');
   const [paymentNote, setPaymentNote] = useState('');
+  const [sendLinks, setSendLinks] = useState<{ view: string; sign: string } | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    refreshInvoice(id);
+  }, [id, refreshInvoice]);
+
+  useEffect(() => {
+    if (!invoice || invoice.status !== 'SENT') return;
+    const interval = setInterval(() => {
+      refreshInvoice(invoice.id);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [invoice?.id, invoice?.status, refreshInvoice]);
 
   if (!invoice || !client) {
     return (
@@ -52,12 +79,25 @@ export function InvoiceDetails() {
 
   const canEdit = invoice.status === 'DRAFT';
   const canSend = invoice.status === 'DRAFT';
-  const canVoid = invoice.status !== 'VOIDED' && invoicePayments.length === 0;
+  const canVoid =
+    invoice.status !== 'VOIDED' &&
+    invoicePayments.length === 0 &&
+    !invoice.signature &&
+    invoice.status !== 'SIGNED';
   const isLocked = invoice.status !== 'DRAFT' && invoice.status !== 'VOIDED';
+  const serviceLabels = getServiceLabels(invoice.serviceUnit);
+  const qtyLabel = invoice.invoiceType === 'SERVICE' ? serviceLabels.qtyLabel : 'Qty';
+  const unitLabel = invoice.invoiceType === 'SERVICE' ? serviceLabels.unitLabel : 'Unit Price';
 
   const handleSendInvoice = async () => {
     const tokens = await sendInvoice(invoice.id);
     if (tokens) {
+      setSendLinks({
+        view: `${window.location.origin}/i/${tokens.viewToken}`,
+        sign: `${window.location.origin}/i/${tokens.signToken}/sign`,
+      });
+      setShowSendConfirm(false);
+      setShowSendModal(true);
       toast.success('Invoice sent successfully');
     }
   };
@@ -91,14 +131,13 @@ export function InvoiceDetails() {
     }
   };
 
-  const handleVoid = async () => {
-    if (window.confirm('Are you sure you want to void this invoice? This cannot be undone.')) {
-      try {
-        await voidInvoice(invoice.id);
-        toast.success('Invoice voided');
-      } catch {
-        // Errors are handled in context
-      }
+  const handleVoidConfirm = async () => {
+    try {
+      await voidInvoice(invoice.id);
+      setShowVoidConfirm(false);
+      toast.success('Invoice voided');
+    } catch {
+      // Errors are handled in context
     }
   };
 
@@ -110,12 +149,12 @@ export function InvoiceDetails() {
     }
   };
 
-  const viewUrl = invoice.viewToken
-    ? `${window.location.origin}/i/${invoice.viewToken}`
-    : '';
-  const signUrl = invoice.signToken
-    ? `${window.location.origin}/i/${invoice.signToken}/sign`
-    : '';
+  const viewUrl =
+    sendLinks?.view ||
+    (invoice.viewToken ? `${window.location.origin}/i/${invoice.viewToken}` : '');
+  const signUrl =
+    sendLinks?.sign ||
+    (invoice.signToken ? `${window.location.origin}/i/${invoice.signToken}/sign` : '');
 
   const handleDownloadReceipt = (receiptId?: string) => {
     if (!receiptId) {
@@ -155,6 +194,9 @@ export function InvoiceDetails() {
                   <div><strong>{client.name}</strong></div>
                   <div>Issue: {new Date(invoice.issueDate).toLocaleDateString()}</div>
                   <div>Due: {new Date(invoice.dueDate).toLocaleDateString()}</div>
+                  {invoice.invoiceType === 'SERVICE' && invoice.servicePeriod && (
+                    <div>Service Period: {invoice.servicePeriod}</div>
+                  )}
                 </div>
               </div>
 
@@ -166,7 +208,7 @@ export function InvoiceDetails() {
                   </Button>
                 )}
                 {canSend && (
-                  <Button onClick={() => setShowSendModal(true)}>
+                  <Button onClick={() => setShowSendConfirm(true)}>
                     <Send className="h-4 w-4 mr-2" />
                     Send
                   </Button>
@@ -179,12 +221,12 @@ export function InvoiceDetails() {
                     </Button>
                     <Button variant="outline" onClick={handleRevise}>
                       <Copy className="h-4 w-4 mr-2" />
-                      Revise
+                      Create Revision
                     </Button>
                   </>
                 )}
                 {canVoid && (
-                  <Button variant="outline" onClick={handleVoid}>
+                  <Button variant="outline" onClick={() => setShowVoidConfirm(true)}>
                     <FileX className="h-4 w-4 mr-2" />
                     Void
                   </Button>
@@ -204,6 +246,11 @@ export function InvoiceDetails() {
                     ? 'This invoice has been signed and cannot be edited. Use "Revise" to create a new version.'
                     : 'This invoice has been sent and cannot be edited. Use "Revise" to create a new version.'}
                 </div>
+                {invoice.signature && (
+                  <div className="text-muted-foreground mt-2">
+                    Signed invoices can&apos;t be voided. Create a revision to make changes.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -243,8 +290,8 @@ export function InvoiceDetails() {
                     <thead className="bg-muted">
                       <tr>
                         <th className="px-4 py-3 text-left text-sm font-medium">Description</th>
-                        <th className="px-4 py-3 text-right text-sm font-medium">Qty</th>
-                        <th className="px-4 py-3 text-right text-sm font-medium">Unit Price</th>
+                        <th className="px-4 py-3 text-right text-sm font-medium">{qtyLabel}</th>
+                        <th className="px-4 py-3 text-right text-sm font-medium">{unitLabel}</th>
                         <th className="px-4 py-3 text-right text-sm font-medium">Total</th>
                       </tr>
                     </thead>
@@ -390,7 +437,7 @@ export function InvoiceDetails() {
             </TabsContent>
           </Tabs>
 
-          {/* Send Modal */}
+          {/* Send Links Modal */}
           <Dialog open={showSendModal} onOpenChange={setShowSendModal}>
             <DialogContent className="sm:max-w-2xl">
               <DialogHeader>
@@ -408,15 +455,47 @@ export function InvoiceDetails() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowSendModal(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSendInvoice} disabled={!canSend}>
-                  <Send className="h-4 w-4 mr-2" />
-                  Confirm Send
+                  Close
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Send Confirmation */}
+          <AlertDialog open={showSendConfirm} onOpenChange={setShowSendConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Send this invoice?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  After sending, you won&apos;t be able to edit it. You can still revise by creating a new version.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleSendInvoice}>
+                  Send Invoice
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Void Confirmation */}
+          <AlertDialog open={showVoidConfirm} onOpenChange={setShowVoidConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Void this invoice?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action can&apos;t be undone and the invoice will be marked as voided.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleVoidConfirm}>
+                  Void Invoice
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Payment Modal */}
           <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>

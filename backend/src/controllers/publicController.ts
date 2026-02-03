@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { InvoiceLinkType, InvoiceStatus, Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma";
-import { AppError } from "../utils/errors";
+import { AppError, isAppError } from "../utils/errors";
 import { hashSha256 } from "../utils/crypto";
 import { renderInvoicePdf } from "../services/pdfService";
 import { normalizeSignature } from "../services/signatureService";
@@ -41,6 +41,9 @@ const serializePublicInvoice = (invoice: Awaited<ReturnType<typeof loadInvoiceBy
   id: invoice.id,
   invoiceNo: invoice.invoiceNo,
   status: invoice.status,
+  invoiceType: invoice.invoiceType,
+  servicePeriod: invoice.servicePeriod,
+  serviceUnit: invoice.serviceUnit,
   issueDate: invoice.issueDate,
   dueDate: invoice.dueDate,
   currency: invoice.currency,
@@ -116,10 +119,16 @@ export const getInvoicePdfPublic = async (
 ) => {
   try {
     const signed = req.query.signed === "true";
-    const invoice = await loadInvoiceByToken(
-      req.params.token,
-      InvoiceLinkType.VIEW,
-    );
+    let invoice;
+    try {
+      invoice = await loadInvoiceByToken(req.params.token, InvoiceLinkType.VIEW);
+    } catch (error) {
+      if (signed && isAppError(error) && error.code === "NOT_FOUND") {
+        invoice = await loadInvoiceByToken(req.params.token, InvoiceLinkType.SIGN);
+      } else {
+        throw error;
+      }
+    }
 
     if (signed) {
       if (!invoice.signature) {

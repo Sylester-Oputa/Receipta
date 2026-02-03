@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { InvoiceStatus, Prisma, SequenceKey } from "@prisma/client";
+import { InvoiceStatus, InvoiceType, Prisma, SequenceKey, ServiceUnit } from "@prisma/client";
 import { prisma } from "../db/prisma";
 import { AppError } from "../utils/errors";
 import { calculateTotals } from "../utils/invoiceTotals";
@@ -46,6 +46,12 @@ export const createInvoice = async (req: Request, res: Response, next: NextFunct
       throw new AppError(400, "Invoice requires at least one item", "VALIDATION_ERROR");
     }
 
+    const invoiceType = (req.body.invoiceType as InvoiceType | undefined) ?? InvoiceType.PRODUCT;
+    const serviceUnit =
+      invoiceType === InvoiceType.SERVICE
+        ? (req.body.serviceUnit as ServiceUnit | undefined) ?? ServiceUnit.HOURS
+        : ServiceUnit.UNITS;
+    const servicePeriod = req.body.servicePeriod as string | undefined;
     const taxRate = Number(req.body.taxRate ?? 0);
     const currency = req.body.currency as string;
 
@@ -70,6 +76,9 @@ export const createInvoice = async (req: Request, res: Response, next: NextFunct
           invoiceNo,
           version: 1,
           status: InvoiceStatus.DRAFT,
+          invoiceType,
+          servicePeriod,
+          serviceUnit,
           issueDate,
           dueDate,
           currency,
@@ -175,6 +184,12 @@ export const updateInvoice = async (req: Request, res: Response, next: NextFunct
 
     const itemsInput = req.body.items as Array<{ description: string; qty: number; unitPrice: number }>;
     const taxRate = Number(req.body.taxRate ?? invoice.taxRate);
+    const invoiceType = (req.body.invoiceType as InvoiceType | undefined) ?? invoice.invoiceType;
+    const serviceUnit =
+      invoiceType === InvoiceType.SERVICE
+        ? (req.body.serviceUnit as ServiceUnit | undefined) ?? invoice.serviceUnit
+        : ServiceUnit.UNITS;
+    const servicePeriod = (req.body.servicePeriod as string | undefined) ?? invoice.servicePeriod;
 
     const itemsWithPosition = itemsInput.map((item, index) => ({
       ...item,
@@ -191,6 +206,9 @@ export const updateInvoice = async (req: Request, res: Response, next: NextFunct
       return tx.invoice.update({
         where: { id: invoice.id },
         data: {
+          invoiceType,
+          servicePeriod,
+          serviceUnit,
           issueDate,
           dueDate,
           currency: req.body.currency ?? invoice.currency,
@@ -347,6 +365,9 @@ export const reviseInvoice = async (req: Request, res: Response, next: NextFunct
           invoiceNo,
           version: invoice.version + 1,
           status: InvoiceStatus.DRAFT,
+          invoiceType: invoice.invoiceType,
+          servicePeriod: invoice.servicePeriod,
+          serviceUnit: invoice.serviceUnit,
           issueDate,
           dueDate: invoice.dueDate,
           currency: invoice.currency,

@@ -17,6 +17,7 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
+  CLOUDINARY_URL: z.string().optional(),
   CLOUDINARY_FOLDER: z.string().optional(),
   SEED_BUSINESS_NAME: z.string().optional(),
   SEED_BUSINESS_CODE: z.string().optional(),
@@ -37,6 +38,27 @@ if (!parsed.success) {
 
 const raw = parsed.data;
 
+const parseCloudinaryUrl = (value?: string) => {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "cloudinary:") {
+      throw new Error("Invalid protocol");
+    }
+    return {
+      cloudName: url.hostname,
+      apiKey: url.username || undefined,
+      apiSecret: url.password || undefined,
+    };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("Invalid CLOUDINARY_URL");
+    process.exit(1);
+  }
+};
+
+const cloudinaryFromUrl = parseCloudinaryUrl(raw.CLOUDINARY_URL);
+
 export const env = {
   nodeEnv: raw.NODE_ENV ?? "development",
   port: Number(raw.PORT ?? 4000),
@@ -49,9 +71,9 @@ export const env = {
   rateLimitWindowMs: Number(raw.RATE_LIMIT_WINDOW_MS ?? 60_000),
   rateLimitMax: Number(raw.RATE_LIMIT_MAX ?? 60),
   cloudinary: {
-    cloudName: raw.CLOUDINARY_CLOUD_NAME,
-    apiKey: raw.CLOUDINARY_API_KEY,
-    apiSecret: raw.CLOUDINARY_API_SECRET,
+    cloudName: cloudinaryFromUrl?.cloudName ?? raw.CLOUDINARY_CLOUD_NAME,
+    apiKey: cloudinaryFromUrl?.apiKey ?? raw.CLOUDINARY_API_KEY,
+    apiSecret: cloudinaryFromUrl?.apiSecret ?? raw.CLOUDINARY_API_SECRET,
     folder: raw.CLOUDINARY_FOLDER ?? "receipta/logos"
   },
   seed: {

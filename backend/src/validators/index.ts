@@ -44,6 +44,9 @@ const invoiceItemSchema = z.object({
 
 export const invoiceCreateSchema = z.object({
   clientId: z.string().uuid(),
+  invoiceType: z.enum(["PRODUCT", "SERVICE"]).optional(),
+  servicePeriod: z.string().min(1).optional(),
+  serviceUnit: z.enum(["HOURS", "MONTHS", "SESSIONS", "UNITS"]).optional(),
   issueDate: z.string().optional(),
   dueDate: z.string().optional(),
   currency: z.string().min(1),
@@ -53,6 +56,9 @@ export const invoiceCreateSchema = z.object({
 });
 
 export const invoiceUpdateSchema = z.object({
+  invoiceType: z.enum(["PRODUCT", "SERVICE"]).optional(),
+  servicePeriod: z.string().min(1).optional(),
+  serviceUnit: z.enum(["HOURS", "MONTHS", "SESSIONS", "UNITS"]).optional(),
   issueDate: z.string().optional(),
   dueDate: z.string().optional(),
   currency: z.string().min(1).optional(),

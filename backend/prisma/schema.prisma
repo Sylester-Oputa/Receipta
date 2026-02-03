@@ -22,6 +22,18 @@ enum InvoiceStatus {
   VOIDED
 }
 
+enum InvoiceType {
+  PRODUCT
+  SERVICE
+}
+
+enum ServiceUnit {
+  HOURS
+  MONTHS
+  SESSIONS
+  UNITS
+}
+
 enum InvoiceLinkType {
   VIEW
   SIGN
@@ -97,6 +109,9 @@ model Invoice {
   invoiceNo         String
   version           Int           @default(1)
   status            InvoiceStatus
+  invoiceType       InvoiceType   @default(PRODUCT)
+  servicePeriod     String?
+  serviceUnit       ServiceUnit   @default(UNITS)
   issueDate         DateTime
   dueDate           DateTime?
   currency          String

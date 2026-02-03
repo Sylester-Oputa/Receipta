@@ -5,6 +5,16 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/app/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/app/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
 import { Plus, Search, Edit, Trash2, Users as UsersIcon } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -15,6 +25,7 @@ export function Clients() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -72,14 +83,14 @@ export function Clients() {
     }
   };
 
-  const handleDelete = async (client: Client) => {
-    if (window.confirm(`Are you sure you want to delete ${client.name}?`)) {
-      try {
-        await deleteClient(client.id);
-        toast.success('Client deleted');
-      } catch {
-        // Errors are handled in context
-      }
+  const handleDeleteConfirm = async () => {
+    if (!clientToDelete) return;
+    try {
+      await deleteClient(clientToDelete.id);
+      toast.success('Client deleted');
+      setClientToDelete(null);
+    } catch {
+      // Errors are handled in context
     }
   };
 
@@ -159,7 +170,7 @@ export function Clients() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(client)}
+                            onClick={() => setClientToDelete(client)}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -206,7 +217,7 @@ export function Clients() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(client)}
+                        onClick={() => setClientToDelete(client)}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -276,6 +287,23 @@ export function Clients() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <AlertDialog open={!!clientToDelete} onOpenChange={() => setClientToDelete(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this client?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will archive the client so it no longer shows in your list.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteConfirm}>
+                  Delete Client
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </motion.div>
       </div>
     </AppShell>

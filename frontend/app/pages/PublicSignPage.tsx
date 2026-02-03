@@ -16,6 +16,9 @@ type PublicInvoiceResponse = {
   id: string;
   invoiceNo: string;
   status: string;
+  invoiceType: "PRODUCT" | "SERVICE";
+  servicePeriod?: string;
+  serviceUnit?: "HOURS" | "MONTHS" | "SESSIONS" | "UNITS";
   issueDate: string;
   dueDate?: string;
   subtotal: any;
@@ -262,6 +265,12 @@ export function PublicSignPage() {
                     <div>
                       <div className="text-sm text-muted-foreground mb-1">Due Date</div>
                       <div className="font-medium">{new Date(invoice.dueDate).toLocaleDateString()}</div>
+                    </div>
+                  )}
+                  {invoice.invoiceType === 'SERVICE' && invoice.servicePeriod && (
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-1">Service Period</div>
+                      <div className="font-medium">{invoice.servicePeriod}</div>
                     </div>
                   )}
                   <div className="border-t border-border pt-4">

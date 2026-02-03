@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '@/app/contexts/AppContext';
 import { AppShell } from '@/app/components/AppShell';
 import { Button } from '@/app/components/ui/button';
@@ -14,6 +14,23 @@ export function Settings() {
   const [formData, setFormData] = useState(settings);
   const [saving, setSaving] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  useEffect(() => {
+    if (!isDirty) {
+      setFormData(settings);
+    }
+  }, [isDirty, settings]);
+
+  const updateForm = (
+    updates: Partial<typeof formData>,
+    options?: { markDirty?: boolean },
+  ) => {
+    setFormData((prev) => ({ ...prev, ...updates }));
+    if (options?.markDirty ?? true) {
+      setIsDirty(true);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +38,7 @@ export function Settings() {
 
     try {
       await updateSettings(formData);
+      setIsDirty(false);
       toast.success('Settings saved successfully');
     } catch {
       // Errors are handled in context
@@ -33,16 +51,32 @@ export function Settings() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.type !== 'image/png' && file.type !== 'image/jpeg') {
+      toast.error('Logo must be a PNG or JPG file');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Logo must be 2MB or smaller');
+      e.target.value = '';
+      return;
+    }
+
     setLogoUploading(true);
     const uploadedUrl = await uploadLogo(file);
     if (uploadedUrl) {
-      setFormData((prev) => ({ ...prev, logoUrl: uploadedUrl }));
+      updateForm({ logoUrl: uploadedUrl }, { markDirty: false });
       toast.success('Logo uploaded');
     }
     setLogoUploading(false);
+    e.target.value = '';
   };
 
   const getContrastColor = (hexColor: string): string => {
+    if (!/^#[0-9A-Fa-f]{6}$/.test(hexColor)) {
+      return '#ffffff';
+    }
     const hex = hexColor.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16);
     const g = parseInt(hex.substr(2, 2), 16);
@@ -51,7 +85,23 @@ export function Settings() {
     return luminance > 0.5 ? '#000000' : '#ffffff';
   };
 
+  const isBrandColorValid = /^#[0-9A-Fa-f]{6}$/.test(formData.brandColor);
   const contrastColor = getContrastColor(formData.brandColor);
+  const hasChanges = useMemo(() => {
+    return (
+      formData.businessName !== settings.businessName ||
+      formData.address !== settings.address ||
+      formData.phone !== settings.phone ||
+      formData.email !== settings.email ||
+      formData.logoUrl !== settings.logoUrl ||
+      formData.bankName !== settings.bankName ||
+      formData.accountName !== settings.accountName ||
+      formData.accountNumber !== settings.accountNumber ||
+      formData.brandColor !== settings.brandColor
+    );
+  }, [formData, settings]);
+  const canSave = hasChanges && isBrandColorValid && !saving && !logoUploading;
+  const safeBrandColor = isBrandColorValid ? formData.brandColor : '#0F172A';
 
   return (
     <AppShell title="Settings">
@@ -78,7 +128,7 @@ export function Settings() {
                 <Input
                   id="businessName"
                   value={formData.businessName}
-                  onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                  onChange={(e) => updateForm({ businessName: e.target.value })}
                   required
                 />
               </div>
@@ -89,7 +139,7 @@ export function Settings() {
                   id="address"
                   rows={3}
                   value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  onChange={(e) => updateForm({ address: e.target.value })}
                   required
                 />
               </div>
@@ -101,7 +151,7 @@ export function Settings() {
                     id="phone"
                     type="tel"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => updateForm({ phone: e.target.value })}
                     required
                   />
                 </div>
@@ -112,7 +162,7 @@ export function Settings() {
                     id="email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => updateForm({ email: e.target.value })}
                     required
                   />
                 </div>
@@ -128,7 +178,7 @@ export function Settings() {
                 <Input
                   id="bankName"
                   value={formData.bankName}
-                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                  onChange={(e) => updateForm({ bankName: e.target.value })}
                 />
               </div>
 
@@ -137,7 +187,7 @@ export function Settings() {
                 <Input
                   id="accountName"
                   value={formData.accountName}
-                  onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
+                  onChange={(e) => updateForm({ accountName: e.target.value })}
                 />
               </div>
 
@@ -146,7 +196,7 @@ export function Settings() {
                 <Input
                   id="accountNumber"
                   value={formData.accountNumber}
-                  onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                  onChange={(e) => updateForm({ accountNumber: e.target.value })}
                 />
               </div>
             </div>
@@ -177,7 +227,7 @@ export function Settings() {
                   disabled={logoUploading}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Uploads to Cloudinary and updates your business logo.
+                  PNG or JPG, max 2MB. Uploads are saved immediately.
                 </p>
               </div>
               
@@ -188,20 +238,25 @@ export function Settings() {
                     <Input
                       id="brandColor"
                       type="color"
-                      value={formData.brandColor}
-                      onChange={(e) => setFormData({ ...formData, brandColor: e.target.value })}
+                      value={safeBrandColor}
+                      onChange={(e) => updateForm({ brandColor: e.target.value })}
                       className="w-20 h-11 cursor-pointer"
                     />
                   </div>
                   <Input
                     type="text"
                     value={formData.brandColor}
-                    onChange={(e) => setFormData({ ...formData, brandColor: e.target.value })}
+                    onChange={(e) => updateForm({ brandColor: e.target.value })}
                     placeholder="#3b82f6"
                     className="flex-1"
                     pattern="^#[0-9A-Fa-f]{6}$"
                   />
                 </div>
+                {!isBrandColorValid && (
+                  <p className="text-sm text-[var(--status-danger)]">
+                    Use a 6-digit hex color like #1F2937.
+                  </p>
+                )}
                 <p className="text-sm text-muted-foreground">
                   This color will be used as an accent in invoice previews and PDFs
                 </p>
@@ -215,9 +270,9 @@ export function Settings() {
                     <div className="text-sm text-muted-foreground">Color Chip</div>
                     <div 
                       className="h-24 rounded-md border border-border flex items-center justify-center font-medium"
-                      style={{ backgroundColor: formData.brandColor, color: contrastColor }}
+                      style={{ backgroundColor: safeBrandColor, color: contrastColor }}
                     >
-                      {formData.brandColor}
+                      {safeBrandColor}
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -243,7 +298,7 @@ export function Settings() {
                 <div className="border border-border rounded-md overflow-hidden">
                   <div 
                     className="h-2"
-                    style={{ backgroundColor: formData.brandColor }}
+                    style={{ backgroundColor: safeBrandColor }}
                   />
                   <div className="p-4 bg-card">
                     <div className="text-sm font-medium mb-1">{formData.businessName}</div>
@@ -255,7 +310,7 @@ export function Settings() {
 
             {/* Submit */}
             <div className="flex justify-end">
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={!canSave}>
                 {saving ? (
                   <>Saving...</>
                 ) : (
