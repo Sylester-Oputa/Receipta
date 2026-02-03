@@ -1,7 +1,7 @@
-import { useRef, useEffect } from "react";
-import SignatureCanvas from "react-signature-canvas";
-import { Button } from "@/app/components/ui/button";
-import { RotateCcw } from "lucide-react";
+import { useRef, useEffect } from 'react';
+import SignatureCanvas from 'react-signature-canvas';
+import { Button } from '@/app/components/ui/button';
+import { RotateCcw } from 'lucide-react';
 
 interface SignaturePadProps {
   onSave: (dataUrl: string) => void;
@@ -18,13 +18,13 @@ export function SignaturePad({ onSave, disabled = false }: SignaturePadProps) {
         const ratio = Math.max(window.devicePixelRatio || 1, 1);
         canvas.width = canvas.offsetWidth * ratio;
         canvas.height = canvas.offsetHeight * ratio;
-        canvas.getContext("2d")?.scale(ratio, ratio);
+        canvas.getContext('2d')?.scale(ratio, ratio);
       }
     };
 
     handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleClear = () => {
@@ -40,14 +40,12 @@ export function SignaturePad({ onSave, disabled = false }: SignaturePadProps) {
 
   return (
     <div className="space-y-2">
-      <div
-        className={`relative border-2 border-dashed border-border rounded-md overflow-hidden bg-card ${disabled ? "opacity-50 pointer-events-none" : ""}`}
-      >
+      <div className="relative border-2 border-dashed border-border rounded-md overflow-hidden bg-card">
         <SignatureCanvas
           ref={sigPadRef}
           canvasProps={{
-            className: "w-full h-48 sm:h-64 touch-none",
-            style: { touchAction: "none" },
+            className: 'w-full h-48 sm:h-64 touch-none',
+            style: { touchAction: 'none' }
           }}
           onEnd={handleEnd}
         />

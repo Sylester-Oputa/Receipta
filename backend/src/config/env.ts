@@ -18,13 +18,16 @@ const envSchema = z.object({
   SEED_BUSINESS_CODE: z.string().optional(),
   SEED_OWNER_EMAIL: z.string().optional(),
   SEED_OWNER_PASSWORD: z.string().optional(),
-  SEED_BRAND_COLOR: z.string().optional()
+  SEED_BRAND_COLOR: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
   // eslint-disable-next-line no-console
-  console.error("Invalid environment variables", parsed.error.flatten().fieldErrors);
+  console.error(
+    "Invalid environment variables",
+    parsed.error.flatten().fieldErrors,
+  );
   process.exit(1);
 }
 
@@ -32,7 +35,7 @@ const raw = parsed.data;
 
 export const env = {
   nodeEnv: raw.NODE_ENV ?? "development",
-  port: Number(raw.PORT ?? 5000),
+  port: Number(raw.PORT ?? 4000),
   databaseUrl: raw.DATABASE_URL,
   jwtSecret: raw.JWT_SECRET,
   jwtExpiresIn: raw.JWT_EXPIRES_IN ?? "1d",
@@ -46,6 +49,6 @@ export const env = {
     businessCode: raw.SEED_BUSINESS_CODE ?? "RCP",
     ownerEmail: raw.SEED_OWNER_EMAIL ?? "owner@receipta.local",
     ownerPassword: raw.SEED_OWNER_PASSWORD ?? "ChangeMe123!",
-    brandColor: raw.SEED_BRAND_COLOR ?? "#0F766E"
-  }
+    brandColor: raw.SEED_BRAND_COLOR ?? "#0F766E",
+  },
 };

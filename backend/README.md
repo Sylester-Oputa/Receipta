@@ -30,22 +30,22 @@ Receipta is an invoice + client acknowledgement + payment receipt platform. This
 ```bash
 npm run dev
 ```
-The server runs on `http://localhost:5000` by default.
+The server runs on `http://localhost:4000` by default.
 
 ## Swagger Docs
-Open `http://localhost:5000/docs` after the server starts.
+Open `http://localhost:4000/docs` after the server starts.
 
 ## Example cURL Flows
 ### Login
 ```bash
-curl -X POST http://localhost:5000/api/v1/auth/login \
+curl -X POST http://localhost:4000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"owner@receipta.local","password":"ChangeMe123!"}'
 ```
 
 ### Create Client
 ```bash
-curl -X POST http://localhost:5000/api/v1/clients \
+curl -X POST http://localhost:4000/api/v1/clients \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"name":"Acme Corp","email":"billing@acme.com"}'
@@ -53,7 +53,7 @@ curl -X POST http://localhost:5000/api/v1/clients \
 
 ### Create Invoice
 ```bash
-curl -X POST http://localhost:5000/api/v1/invoices \
+curl -X POST http://localhost:4000/api/v1/invoices \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -68,18 +68,18 @@ curl -X POST http://localhost:5000/api/v1/invoices \
 
 ### Send Invoice (get public tokens)
 ```bash
-curl -X POST http://localhost:5000/api/v1/invoices/<INVOICE_ID>/send \
+curl -X POST http://localhost:4000/api/v1/invoices/<INVOICE_ID>/send \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
 ### Public View
 ```bash
-curl http://localhost:5000/api/v1/public/invoices/view/<VIEW_TOKEN>
+curl http://localhost:4000/api/v1/public/invoices/view/<VIEW_TOKEN>
 ```
 
 ### Public Sign (data URL signature)
 ```bash
-curl -X POST http://localhost:5000/api/v1/public/invoices/sign/<SIGN_TOKEN> \
+curl -X POST http://localhost:4000/api/v1/public/invoices/sign/<SIGN_TOKEN> \
   -H "Content-Type: application/json" \
   -d '{
     "signerName":"Jane Doe",
@@ -91,7 +91,7 @@ curl -X POST http://localhost:5000/api/v1/public/invoices/sign/<SIGN_TOKEN> \
 
 ### Record Payment
 ```bash
-curl -X POST http://localhost:5000/api/v1/invoices/<INVOICE_ID>/payments \
+curl -X POST http://localhost:4000/api/v1/invoices/<INVOICE_ID>/payments \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"amount":100,"method":"CARD"}'
@@ -99,7 +99,7 @@ curl -X POST http://localhost:5000/api/v1/invoices/<INVOICE_ID>/payments \
 
 ### Get Receipt PDF
 ```bash
-curl http://localhost:5000/api/v1/receipts/<RECEIPT_ID>/pdf \
+curl http://localhost:4000/api/v1/receipts/<RECEIPT_ID>/pdf \
   -H "Authorization: Bearer <TOKEN>" --output receipt.pdf
 ```
 
