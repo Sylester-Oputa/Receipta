@@ -1,14 +1,48 @@
+# Dependencies
 node_modules/
 npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Environment variables
 .env
+.env*.local
+
+# Logs
 *.log
+logs/
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Testing
 coverage/
+
+# Build outputs
 dist/
 build/
+out/
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/.swc/
+
+# Prisma
+backend/prisma/migrations/migration_lock.toml
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+
+# Receipts & Storage
 receipts/*.pdf
 backend/storage/
+uploads/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
