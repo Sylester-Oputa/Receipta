@@ -44,11 +44,12 @@ export default function ReceiptForm({ receipt, onClose }) {
       if (response.ok) {
         onClose();
       } else {
-        alert('Error saving receipt');
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || 'Error saving receipt. Please try again.');
       }
     } catch (error) {
       console.error('Error saving receipt:', error);
-      alert('Error saving receipt');
+      alert('Unable to connect to the server. Please check your connection and try again.');
     }
   };
 
