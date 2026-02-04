@@ -704,7 +704,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (updates.address !== undefined) payload.address = updates.address;
       if (updates.phone !== undefined) payload.phone = updates.phone;
       if (updates.email !== undefined) payload.email = updates.email;
-      if (updates.logoUrl !== undefined) payload.logoUrl = updates.logoUrl;
+      if (updates.logoUrl !== undefined) {
+        payload.logoUrl = updates.logoUrl === "" ? null : updates.logoUrl;
+      }
       if (updates.brandColor !== undefined)
         payload.brandingPrimaryColor = updates.brandColor;
 
