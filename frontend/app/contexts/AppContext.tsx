@@ -101,7 +101,7 @@ export interface BusinessSettings {
   address: string;
   phone: string;
   email: string;
-  logoUrl?: string;
+  logoUrl?: string | null;
   bankName: string;
   accountName: string;
   accountNumber: string;

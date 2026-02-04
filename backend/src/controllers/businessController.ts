@@ -41,7 +41,10 @@ export const updateBusiness = async (
         address: data.address as string | undefined,
         phone: data.phone as string | undefined,
         email: data.email as string | undefined,
-        logoUrl: data.logoUrl as string | undefined,
+        logoUrl:
+          data.logoUrl === null
+            ? null
+            : (data.logoUrl as string | undefined),
         bankDetailsJson: data.bankDetailsJson as
           | Prisma.InputJsonValue
           | undefined,

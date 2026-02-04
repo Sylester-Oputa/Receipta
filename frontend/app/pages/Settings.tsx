@@ -5,9 +5,19 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Textarea } from '@/app/components/ui/textarea';
-import { Save, Check } from 'lucide-react';
+import { Save, Check, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/app/components/ui/alert-dialog';
 
 export function Settings() {
   const { settings, updateSettings, uploadLogo } = useApp();
@@ -15,6 +25,7 @@ export function Settings() {
   const [saving, setSaving] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [showRemoveLogo, setShowRemoveLogo] = useState(false);
 
   useEffect(() => {
     if (!isDirty) {
@@ -73,6 +84,20 @@ export function Settings() {
     e.target.value = '';
   };
 
+  const handleRemoveLogo = async () => {
+    setLogoUploading(true);
+    try {
+      await updateSettings({ logoUrl: null });
+      updateForm({ logoUrl: '' }, { markDirty: false });
+      toast.success('Logo removed');
+    } catch {
+      // Errors are handled in context
+    } finally {
+      setLogoUploading(false);
+      setShowRemoveLogo(false);
+    }
+  };
+
   const getContrastColor = (hexColor: string): string => {
     if (!/^#[0-9A-Fa-f]{6}$/.test(hexColor)) {
       return '#ffffff';
@@ -102,6 +127,7 @@ export function Settings() {
   }, [formData, settings]);
   const canSave = hasChanges && isBrandColorValid && !saving && !logoUploading;
   const safeBrandColor = isBrandColorValid ? formData.brandColor : '#0F172A';
+  const logoUrl = formData.logoUrl || '';
 
   return (
     <AppShell title="Settings">
@@ -207,16 +233,26 @@ export function Settings() {
 
               <div className="space-y-2">
                 <Label htmlFor="logo">Business Logo (PNG or JPG)</Label>
-                {formData.logoUrl && (
-                  <div className="flex items-center gap-3">
+                {logoUrl && (
+                  <div className="flex flex-wrap items-center gap-3">
                     <img
-                      src={formData.logoUrl}
+                      src={logoUrl}
                       alt="Business logo"
                       className="h-12 w-auto rounded border border-border bg-white p-1"
                     />
                     <span className="text-xs text-muted-foreground truncate">
-                      {formData.logoUrl}
+                      {logoUrl}
                     </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowRemoveLogo(true)}
+                      disabled={logoUploading}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Remove
+                    </Button>
                   </div>
                 )}
                 <Input
@@ -261,6 +297,23 @@ export function Settings() {
                   This color will be used as an accent in invoice previews and PDFs
                 </p>
               </div>
+
+              <AlertDialog open={showRemoveLogo} onOpenChange={setShowRemoveLogo}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove business logo?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will remove the logo from invoices and PDFs. You can upload a new one anytime.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleRemoveLogo}>
+                      Remove Logo
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
               {/* Color Preview */}
               <div className="space-y-3">

@@ -16,7 +16,7 @@ export const businessUpdateSchema = z
     address: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email().optional(),
-    logoUrl: z.string().url().optional(),
+    logoUrl: z.string().url().nullable().optional(),
     bankDetailsJson: z.record(z.unknown()).optional(),
     brandingPrimaryColor: z
       .string()
