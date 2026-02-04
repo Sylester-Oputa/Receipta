@@ -269,21 +269,29 @@ export const renderReceiptPdf = async (data: {
 
     if (logoBuffer) {
       try {
-        const image = (doc as unknown as {
-          openImage: (input: Buffer) => { width: number; height: number };
-        }).openImage(logoBuffer);
         const maxWidth = Math.min(120, contentWidth);
         const maxHeight = 40;
-        const scale = Math.min(
-          maxWidth / image.width,
-          maxHeight / image.height,
-          1,
-        );
-        const width = image.width * scale;
-        const height = image.height * scale;
-        const x = doc.page.margins.left + (contentWidth - width) / 2;
         const y = doc.y;
-        doc.image(image, x, y, { width, height });
+        let width = maxWidth;
+        let height = maxHeight;
+        try {
+          const image = (doc as unknown as {
+            openImage?: (input: Buffer) => { width: number; height: number };
+          }).openImage?.(logoBuffer);
+          if (image?.width && image?.height) {
+            const scale = Math.min(
+              maxWidth / image.width,
+              maxHeight / image.height,
+              1,
+            );
+            width = image.width * scale;
+            height = image.height * scale;
+          }
+        } catch {
+          // Ignore measurement failures
+        }
+        const x = doc.page.margins.left + (contentWidth - width) / 2;
+        doc.image(logoBuffer, x, y, { width, height });
         doc.y = y + height + 4;
       } catch {
         // Ignore logo render failures
